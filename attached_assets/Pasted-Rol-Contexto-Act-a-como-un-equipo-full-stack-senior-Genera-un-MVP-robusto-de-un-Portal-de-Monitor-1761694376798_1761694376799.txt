@@ -1,0 +1,225 @@
+Rol / Contexto
+Actúa como un equipo full-stack senior. Genera un MVP robusto de un Portal de Monitoreo y Diagnóstico Financiero-Fiscal para productores (caso Driscoll’s).
+Objetivo: detectar riesgos fiscales/financieros (SAT, IMSS, liquidez/endeudamiento), emitir alertas, y ofrecer visibilidad a Driscoll’s con tablero y ficha por productor.
+El portal debe soportar: Diagnóstico One-Shot, Monitoreo Recurrente (scheduler), Motor de Reglas editable, RBAC básico (ADMIN/ANALYST/PRODUCER), seed de datos, exportes CSV y adapters mock para SAT/IMSS.
+
+Stack y lineamientos
+
+Frontend: Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui.
+
+Backend: Next.js API routes (o Fastify en /server si te es más limpio, pero prefiero API Routes).
+
+DB: Prisma con SQLite en dev y PostgreSQL opcional vía DATABASE_URL.
+
+Auth: NextAuth (Email/Password simple + Google opcional), sesiones JWT; RBAC por roles.
+
+Scheduler: node-cron o equivalente para ejecuciones semestral/anual (usa RRULE simple mock mensual en demo).
+
+Infra local: scripts prisma migrate/seed.
+
+No incluir: Docker, Storybook, CI/CD, pruebas e2e (puedes agregar 2–3 tests unitarios ligeros si lo consideras útil).
+
+Calidad: ESLint + Prettier + simple logger.
+
+Modelado (Prisma)
+
+Crea estas entidades mínimas, con migraciones y seed:
+
+User { id, name, email (unique), role: ADMIN|ANALYST|PRODUCER, hash, isActive, createdAt }
+
+Producer { id, displayName, rfc (unique), zona, contacto, email, phone }
+
+LegalEntity { id, producerId (FK), rfc, tipo: MORAL|FISICA, poderesVigentesAt, status }
+
+Ranch { id, producerId (FK), nombre, zona, hectareas, empleados }
+
+Crop { id, ranchId (FK), tipo: FRESA|FRAMBUESA|ARANDANO|MORA, temporada }
+
+FinancialSnapshot { id, legalEntityId (FK), periodo (YYYY-MM), liquidez, endeudamientoPct, ingresosAnuales, egresosAnuales, notas }
+
+ValidationTask { id, legalEntityId (FK), tipo: SAT|IMSS|FINANCIERA|LEGAL, modo: ONE_SHOT|RECURRENTE, estado: PENDIENTE|OK|RISK|FAIL, executedAt, payloadIn JSON, payloadOut JSON }
+
+Alert { id, legalEntityId (FK), ruleCode, severity: LOW|MEDIUM|HIGH, message, createdAt, resolvedAt? }
+
+Rule { id, code (unique), name, description, severityDefault, isActive, evaluatorType: THRESHOLD|BOOLEAN|CUSTOM, config JSON }
+
+AuditLog { id, actorUserId (FK), action, targetType, targetId, at, metadata JSON }
+
+Incluye índices útiles (por rfc, createdAt, severity).
+
+Motor de Reglas (RuleEngine)
+
+Implementa un RuleEngine configurable leyendo Rule + config. Reglas iniciales:
+
+SAT_OPINION_NEGATIVA → HIGH si SatAdapter.status = "negativa".
+
+IMSS_SUSPENSION → HIGH si ImssAdapter.status = "suspendido".
+
+ENDEUDAMIENTO_ALTO → HIGH si snapshot.endeudamientoPct > 35.
+
+LIQUIDEZ_BAJA → MEDIUM si snapshot.liquidez < config.umbral.
+
+PODERES_VENCIDOS → MEDIUM si poderesVigentesAt < now().
+
+Debe permitir activar/desactivar reglas y ajustar config sin re-deploy.
+
+Adapters externos (Mock)
+
+Implementa Adapter Pattern con interfaces y mocks deterministas:
+
+SatAdapter.getStatus(legalEntity) → { status: "positiva"|"negativa", vigencia: ISO }
+
+ImssAdapter.getStatus(legalEntity) → { status: "activo"|"suspendido" }
+
+FinAdapter.getSnapshot(legalEntity|producer) → { liquidez, endeudamientoPct, ingresosAnuales, egresosAnuales }
+
+Los mocks pueden derivarse del RFC (hash simple) para reproducibilidad. Llaves .env simuladas: SAT_API_KEY, IMSS_API_KEY.
+
+Flujos clave
+
+Diagnóstico One-Shot (por productor o razón social)
+
+Acción: botón “Diagnóstico One-Shot” en ficha o lista.
+
+Crea ValidationTask (SAT, IMSS, FIN), invoca adapters, persiste payloadOut.
+
+Ejecuta RuleEngine, crea Alert según resultados.
+
+Actualiza semáforo (estado más grave).
+
+Monitoreo Recurrente (scheduler)
+
+node-cron: RRULE demo mensual (para mostrar funcionamiento), configurable (semestral/anual).
+
+Re-ejecuta validaciones para cohortes (por zona o lista).
+
+Si cambian métricas/estatus → nuevas Alert.
+
+Bitácora en AuditLog.
+
+Gestión de Alertas
+
+Listado con filtros por severidad, tipo, fecha, zona.
+
+Acción: “Resolver” (marca resolvedAt).
+
+Exportar CSV de alertas por periodo (endpoint dedicado).
+
+Páginas (Next.js App Router)
+
+/login (credenciales simples con NextAuth; roles ADMIN/ANALYST/PRODUCER).
+
+/dashboard
+
+KPI cards: productores en HIGH, alertas nuevas, tareas pendientes.
+
+Gráficos simples (bar/pie) por zona/cultivo (usa libs livianas o componentes propios).
+
+/producers
+
+Tabla con filtros (zona, cultivo, semáforo).
+
+Acciones: Diagnóstico One-Shot, Ver Ficha.
+
+/producers/[id]
+
+Ficha: razones sociales, ranchos/cultivos, snapshots, validaciones, alertas, historial.
+
+/alerts
+
+Tabla de alertas; filtros; botón Resolver; Export CSV.
+
+/admin/rules
+
+CRUD de reglas; editor de config (JSON); Test Rule contra snapshot demo.
+
+/admin/scheduler
+
+Programar lotes por zona / lista; ver histórico de ejecuciones.
+
+UI/UX: Tailwind + shadcn/ui; chips por severidad; semáforos; toasts; empty states.
+
+API (ejemplos)
+
+POST /api/auth/login (si no usas NextAuth, crea simple login; si usas NextAuth, omite)
+
+GET /api/producers POST /api/producers
+
+POST /api/validation/run body: { legalEntityId, tipo, modo } → crea ValidationTask, ejecuta adapters, RuleEngine, retorna alertas.
+
+POST /api/scheduler/run body: { cohort: "zona:Occidente" | ["id1","id2"], tipo, modo }
+
+GET /api/alerts?severity&zone&from&to
+
+PATCH /api/alerts/:id/resolve
+
+GET /api/exports/alerts.csv?period=YYYY-MM
+
+GET /api/rules POST /api/rules PATCH /api/rules/:id
+
+POST /api/rules/test body: { ruleId, snapshotId } → resultado evaluación
+
+Incluye middleware de RBAC por ruta (ADMIN para /admin/*, ANALYST para validación/exportes, PRODUCER solo su ficha/alertas propias).
+
+Seguridad y cumplimiento
+
+Sanitiza inputs (Zod).
+
+Limita campos con PII (no subas documentos en v1; solo metadatos).
+
+AuditLog en acciones clave (crear productor, ejecutar diagnóstico, resolver alerta, cambiar regla).
+
+Rate limiting básico en endpoints de validación.
+
+Seed y Demo
+
+prisma/seed.ts: 10 productores, 20 razones sociales, 15 ranchos, mix de cultivos (fresa, frambuesa, arándano, mora), snapshots con endeudamiento 20–45%, 2–3 alertas HIGH.
+
+Usuarios demo:
+
+admin: admin@demo.local / Admin123!
+
+analyst: analyst@demo.local / Analyst123!
+
+producer: producer@demo.local / Producer123!
+
+Script: pnpm db:migrate && pnpm db:seed && pnpm dev.
+
+README (solicítalo)
+
+Incluye pasos de setup, variables .env.example:
+
+DATABASE_URL="file:./dev.db"        # SQLite por defecto
+NEXTAUTH_SECRET="..."
+NEXTAUTH_URL="http://localhost:3000"
+SAT_API_KEY="demo-sat"
+IMSS_API_KEY="demo-imss"
+ENABLE_GOOGLE_AUTH=false
+
+
+y diagrama Mermaid con arquitectura (frontend → API Routes → Prisma → DB; cron → API service → RuleEngine → Alerts).
+
+Criterios de aceptación (QA manual)
+
+Crear productor y razón social → ejecutar Diagnóstico One-Shot → ver alertas y semáforo en dashboard y ficha.
+
+Programar Monitoreo Recurrente (mock mensual) → al cambiar un mock de SAT/IMSS o snapshot financiero, aparecen alertas nuevas.
+
+Editar reglas (activar/desactivar / cambiar umbral) → ejecutar rules/test → resultado visible.
+
+Exportar CSV de alertas por periodo.
+
+RBAC: ADMIN accede a /admin/*; ANALYST a dashboard/alerts/validation; PRODUCER solo a su ficha/alertas.
+
+Consideraciones de performance
+
+Paginación server-side en /producers y /alerts.
+
+Cargas perezosas en ficha (tabs).
+
+Índices en Alert(severity, createdAt) y LegalEntity(rfc).
+
+Entrega esperada del generador
+Repo Next.js con: código completo, migraciones Prisma, seed, adapters mock, RuleEngine, páginas y endpoints, scripts (dev, db:migrate, db:seed), README con Mermaid y capturas (o placeholders).
+
+No generes Docker, CI/CD ni Storybook. Prioriza código claro y funcional listo para demo.
