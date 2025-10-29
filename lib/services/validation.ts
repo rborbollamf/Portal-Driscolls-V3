@@ -10,6 +10,7 @@ import {
   updateLegalEntity,
   getProducer,
   updateProducer,
+  createFinancialSnapshot,
 } from "@/lib/db";
 import { SatAdapter } from "@/lib/adapters/sat";
 import { ImssAdapter } from "@/lib/adapters/imss";
@@ -64,12 +65,26 @@ export class ValidationService {
       } else if (tipo === "FINANCIERA") {
         const financialSnapshot = await FinancialAdapter.getSnapshot(legalEntity);
         payloadOut.financialSnapshot = financialSnapshot;
+        
+        const newSnapshot = {
+          id: generateId(),
+          legalEntityId,
+          periodo: new Date().toISOString().substring(0, 7),
+          liquidez: financialSnapshot.liquidez,
+          endeudamientoPct: financialSnapshot.endeudamientoPct,
+          ingresosAnuales: financialSnapshot.ingresosAnuales,
+          egresosAnuales: financialSnapshot.egresosAnuales,
+          notas: `Auto-generated from ${tipo} validation`,
+        };
+        createFinancialSnapshot(newSnapshot);
         context.financialSnapshot = financialSnapshot;
       }
 
-      const existingSnapshot = getLatestFinancialSnapshot(legalEntityId);
-      if (existingSnapshot) {
-        context.financialSnapshot = existingSnapshot;
+      if (!context.financialSnapshot) {
+        const existingSnapshot = getLatestFinancialSnapshot(legalEntityId);
+        if (existingSnapshot) {
+          context.financialSnapshot = existingSnapshot;
+        }
       }
 
       const rules = getRules(true);

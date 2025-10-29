@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { scheduler } from "@/lib/services/scheduler";
+import { requireAuth } from "@/lib/auth/middleware";
 
 export async function GET() {
+  const auth = await requireAuth(["ADMIN"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const status = scheduler.getStatus();
     return NextResponse.json(status);

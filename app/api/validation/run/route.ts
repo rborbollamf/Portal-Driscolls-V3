@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ValidationService } from "@/lib/services/validation";
 import { createAuditLog } from "@/lib/db";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth/middleware";
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(["ADMIN", "ANALYST"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const body = await request.json();
     const { legalEntityId, tipo, modo = "ONE_SHOT" } = body;
@@ -25,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     createAuditLog({
       id: generateId(),
-      actorUserId: "current-user",
+      actorUserId: auth.userId,
       action: "run_validation",
       targetType: "LegalEntity",
       targetId: legalEntityId,

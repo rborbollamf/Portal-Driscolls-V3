@@ -8,11 +8,15 @@ import {
   getValidationTasks,
   getAlerts,
 } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/middleware";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth(["ADMIN", "ANALYST", "PRODUCER"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const producer = getProducer(params.id);
 

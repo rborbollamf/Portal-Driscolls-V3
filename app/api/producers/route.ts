@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProducers, createProducer, getLegalEntities, getRanches, getCrops } from "@/lib/db";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth/middleware";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(["ADMIN", "ANALYST", "PRODUCER"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const zona = searchParams.get("zona") || undefined;
@@ -45,6 +49,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(["ADMIN", "ANALYST"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const body = await request.json();
 

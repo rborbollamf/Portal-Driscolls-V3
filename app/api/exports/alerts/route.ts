@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAlerts, getLegalEntity, getProducer } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/middleware";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(["ADMIN", "ANALYST"]);
+  if (!auth.authorized) return auth.response;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const periodo = searchParams.get("periodo");
