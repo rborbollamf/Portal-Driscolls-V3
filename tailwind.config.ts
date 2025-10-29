@@ -44,11 +44,21 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        driscoll: {
+          yellow: "#FDD835",
+          green: "#4A7C59",
+          darkgreen: "#2E5840",
+          red: "#E53935",
+          lightgreen: "#7CB342",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["var(--font-montserrat)", "system-ui", "sans-serif"],
       },
     },
   },
