@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import Image from "next/image";
 
 export function NavBar({ userRole }: { userRole: string }) {
   const pathname = usePathname();
@@ -10,21 +11,27 @@ export function NavBar({ userRole }: { userRole: string }) {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <nav className="bg-indigo-600 text-white shadow-lg">
+    <nav className="bg-driscoll-green text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-20">
           <div className="flex items-center space-x-8">
-            <Link href="/dashboard" className="text-xl font-bold">
-              Portal Driscoll's
+            <Link href="/dashboard" className="flex items-center space-x-3">
+              <Image 
+                src="/driscoll-logo.png" 
+                alt="Driscoll's Logo" 
+                width={180} 
+                height={60}
+                className="h-12 w-auto"
+              />
             </Link>
 
             <div className="flex space-x-4">
               <Link
                 href="/dashboard"
-                className={`px-3 py-2 rounded ${
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   isActive("/dashboard")
-                    ? "bg-indigo-700"
-                    : "hover:bg-indigo-500"
+                    ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                    : "hover:bg-driscoll-darkgreen/20"
                 }`}
               >
                 Dashboard
@@ -32,10 +39,10 @@ export function NavBar({ userRole }: { userRole: string }) {
 
               <Link
                 href="/producers"
-                className={`px-3 py-2 rounded ${
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   isActive("/producers")
-                    ? "bg-indigo-700"
-                    : "hover:bg-indigo-500"
+                    ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                    : "hover:bg-driscoll-darkgreen/20"
                 }`}
               >
                 Productores
@@ -43,10 +50,10 @@ export function NavBar({ userRole }: { userRole: string }) {
 
               <Link
                 href="/alerts"
-                className={`px-3 py-2 rounded ${
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   isActive("/alerts")
-                    ? "bg-indigo-700"
-                    : "hover:bg-indigo-500"
+                    ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                    : "hover:bg-driscoll-darkgreen/20"
                 }`}
               >
                 Alertas
@@ -56,10 +63,10 @@ export function NavBar({ userRole }: { userRole: string }) {
                 <>
                   <Link
                     href="/admin/rules"
-                    className={`px-3 py-2 rounded ${
+                    className={`px-4 py-2 rounded-md font-medium transition-colors ${
                       isActive("/admin/rules")
-                        ? "bg-indigo-700"
-                        : "hover:bg-indigo-500"
+                        ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                        : "hover:bg-driscoll-darkgreen/20"
                     }`}
                   >
                     Reglas
@@ -67,10 +74,10 @@ export function NavBar({ userRole }: { userRole: string }) {
 
                   <Link
                     href="/admin/scheduler"
-                    className={`px-3 py-2 rounded ${
+                    className={`px-4 py-2 rounded-md font-medium transition-colors ${
                       isActive("/admin/scheduler")
-                        ? "bg-indigo-700"
-                        : "hover:bg-indigo-500"
+                        ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                        : "hover:bg-driscoll-darkgreen/20"
                     }`}
                   >
                     Scheduler
@@ -82,7 +89,7 @@ export function NavBar({ userRole }: { userRole: string }) {
 
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 rounded"
+            className="px-6 py-2 bg-driscoll-yellow text-driscoll-green hover:bg-driscoll-yellow/90 rounded-md font-semibold transition-colors"
           >
             Salir
           </button>
