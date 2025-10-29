@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAlerts, getLegalEntity, getProducer } from "@/lib/db";
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const severity = searchParams.get("severity") || undefined;
+    const zona = searchParams.get("zona") || undefined;
+    const resolved = searchParams.get("resolved");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const offset = (page - 1) * limit;
+
+    let { alerts, total } = getAlerts({
+      severity,
+      resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
+      limit,
+      offset,
+    });
+
+    if (zona) {
+      alerts = alerts.filter((alert) => {
+        const legalEntity = getLegalEntity(alert.legalEntityId);
+        if (!legalEntity) return false;
+        const producer = getProducer(legalEntity.producerId);
+        return producer?.zona === zona;
+      });
+      total = alerts.length;
+    }
+
+    const enrichedAlerts = alerts.map((alert) => {
+      const legalEntity = getLegalEntity(alert.legalEntityId);
+      const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
+
+      return {
+        ...alert,
+        legalEntity,
+        producer,
+      };
+    });
+
+    return NextResponse.json({
+      alerts: enrichedAlerts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch alerts" },
+      { status: 500 }
+    );
+  }
+}
