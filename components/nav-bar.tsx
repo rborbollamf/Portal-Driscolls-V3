@@ -88,7 +88,10 @@ export function NavBar({ userRole }: { userRole: string }) {
           </div>
 
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => {
+              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              signOut({ callbackUrl: `${baseUrl}/login` });
+            }}
             className="px-6 py-2 bg-driscoll-yellow text-driscoll-green hover:bg-driscoll-yellow/90 rounded-md font-semibold transition-colors"
           >
             Salir

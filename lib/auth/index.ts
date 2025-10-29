@@ -3,6 +3,16 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { getUserByEmail } from "@/lib/db";
 
+const getBaseUrl = () => {
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+  return `http://localhost:${process.env.PORT || 3000}`;
+};
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
