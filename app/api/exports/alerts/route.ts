@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAlerts, getLegalEntity, getProducer } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/middleware";
 
+// Helper function to properly escape CSV fields
+function escapeCSVField(field: string | number): string {
+  const fieldStr = String(field);
+  // Always wrap fields in quotes and escape internal quotes
+  return `"${fieldStr.replace(/"/g, '""')}"`;
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(["ADMIN", "ANALYST"]);
   if (!auth.authorized) return auth.response;
@@ -30,14 +37,14 @@ export async function GET(request: NextRequest) {
         const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
 
         return [
-          alert.id,
-          new Date(alert.createdAt).toLocaleDateString(),
-          alert.severity,
-          `"${alert.message.replace(/"/g, '""')}"`,
-          producer?.displayName || "N/A",
-          legalEntity?.rfc || "N/A",
-          producer?.zona || "N/A",
-          alert.resolvedAt ? "Sí" : "No",
+          escapeCSVField(alert.id),
+          escapeCSVField(new Date(alert.createdAt).toLocaleDateString("es-MX")),
+          escapeCSVField(alert.severity),
+          escapeCSVField(alert.message),
+          escapeCSVField(producer?.displayName || "N/A"),
+          escapeCSVField(legalEntity?.rfc || "N/A"),
+          escapeCSVField(producer?.zona || "N/A"),
+          escapeCSVField(alert.resolvedAt ? "Sí" : "No"),
         ].join(",");
       }),
     ].join("\n");
