@@ -1,0 +1,115 @@
+Datos mock (en un solo archivo, por ej. demoData.ts)
+
+Crea un dataset estático razonable (no real) con:
+
+24 meses de información (ingresos, egresos, utilidad neta, margen %).
+
+Ratios financieros por año (liquidez, endeudamiento, margen neto, ROA, ROE).
+
+Top 5 clientes con: nombre, ingresos anuales, porcentaje sobre el total, indicador de “en riesgo” (boolean).
+
+Estado fiscal y de cumplimiento:
+
+Opinión SAT: “Positiva/Negativa”.
+
+IMSS: “Activo/Suspendido”.
+
+Porcentaje de ingresos con clientes en listas negras.
+
+Porcentaje de egresos en entidades de riesgo.
+
+Estructura de la UI
+
+Un solo layout principal con 4 secciones (tabs o botones). Cada sección es un reporte de alto impacto:
+
+1) Reporte “Visión General”
+
+Cards con KPIs:
+
+Ingresos últimos 12 meses
+
+Utilidad neta últimos 12 meses
+
+Margen neto %
+
+Crecimiento anual (%)
+
+Gráfica de líneas: Ingresos vs Egresos por mes (últimos 12 meses).
+
+Barra/semáforo simple de salud general (verde/amarillo/rojo) según margen y crecimiento.
+
+2) Reporte “Rentabilidad y Ratios”
+
+Tabla/resumen con ratios clave por año:
+
+Margen bruto %
+
+Margen neto %
+
+Liquidez (current ratio)
+
+Endeudamiento (Deuda/Capital)
+
+ROA
+
+ROE
+
+Gráfica tipo radar o barras comparando 2 años de ratios.
+
+Breve texto/tooltip debajo explicando si los ratios están en zona saludable o de riesgo (basado en umbrales simples hardcodeados).
+
+3) Reporte “Clientes y Concentración”
+
+KPIs:
+
+Número de clientes activos
+
+Concentración Top 5 (%)
+
+Ingresos en riesgo (monto y %) por clientes marcados “en riesgo”.
+
+Tabla Top 5 clientes: nombre, monto, %, indicador de riesgo.
+
+Gráfica (pie o barras) para mostrar la concentración de ingresos (Top 5 vs resto).
+
+Un pequeño panel de alerta si la concentración Top 5 > 40%.
+
+4) Reporte “Riesgos y Cumplimiento Fiscal”
+
+Cards con estado:
+
+Opinión SAT (verde/rojo)
+
+IMSS (verde/rojo)
+
+% ingresos en listas negras (con semáforo)
+
+% egresos en entidades de riesgo
+
+Gráfica sencilla (barras) de evolución de un indicador de riesgo en el tiempo (por ejemplo, % ingresos en riesgo últimos 8 trimestres).
+
+Lista de “alertas clave” generadas a partir de los datos mock, por ejemplo:
+
+“Riesgo alto: Opinión SAT negativa”
+
+“Alerta: Concentración de ingresos en clientes de riesgo > X%”
+
+Detalles de implementación
+
+Crear un componente Layout con un header y un selector de reporte (tabs/botones).
+
+Crear componentes independientes para cada reporte:
+
+OverviewReport
+
+RatiosReport
+
+CustomersReport
+
+ComplianceReport
+
+Usar Tailwind para que se vea moderno: cards, sombras suaves, panel central con max-width.
+
+Usar Recharts para las gráficas (líneas, barras, pie, radar).
+
+No implementar exportaciones, filtros avanzados ni paginación; basta con que se vean claramente las métricas y gráficas.
