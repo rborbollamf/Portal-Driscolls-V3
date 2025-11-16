@@ -59,6 +59,17 @@ export function NavBar({ userRole }: { userRole: string }) {
                 Alertas
               </Link>
 
+              <Link
+                href="/reports"
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  isActive("/reports")
+                    ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                    : "hover:bg-driscoll-darkgreen/20"
+                }`}
+              >
+                Reportes
+              </Link>
+
               {userRole === "ADMIN" && (
                 <>
                   <Link
