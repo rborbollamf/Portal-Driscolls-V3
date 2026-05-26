@@ -1,0 +1,168 @@
+Necesito aplicar cambios puntuales en una copia del prototipo actual de Driscoll’s.
+
+Objetivo: modificar únicamente Productores y Alertas. No tocar Dashboard, Reportes, Reglas ni Scheduler.
+
+No rediseñar, no cambiar look and feel, no instalar dependencias, no refactorizar componentes completos. Haz solo los cambios mínimos necesarios.
+
+1. PRODUCTORES
+
+En la ventana de Productores ya existe un listado y una acción/botón “Ver Detalle”.
+
+Mantén el listado principal como está.
+
+Solo ajusta el detalle del productor para mostrar estos 19 campos, sin duplicar campos que ya existan:
+
+- Cultivo
+- Distrito
+- Nombre Área de Cultivo
+- Productor
+- ID COFIBE/CG
+- Número de Productor
+- Razón Social
+- Representante Legal
+- Dirección Fiscal
+- Colonia
+- Municipio
+- Estado
+- Código Postal
+- RFC
+- Nombre Contacto
+- Teléfono Contacto
+- Número de Celular
+- Correo Electrónico
+- Correo Electrónico Productor
+
+Usa la misma ventana, modal, drawer o vista de detalle actual. No crear una pantalla nueva.
+
+Organiza el detalle en 4 bloques simples:
+
+Datos de cultivo:
+- Cultivo
+- Distrito
+- Nombre Área de Cultivo
+
+Datos del productor:
+- Productor
+- ID COFIBE/CG
+- Número de Productor
+- Razón Social
+- Representante Legal
+
+Domicilio fiscal:
+- Dirección Fiscal
+- Colonia
+- Municipio
+- Estado
+- Código Postal
+- RFC
+
+Datos de contacto:
+- Nombre Contacto
+- Teléfono Contacto
+- Número de Celular
+- Correo Electrónico
+- Correo Electrónico Productor
+
+Si ya existe “Zona”, usar “Distrito” como equivalente y no mostrar ambos si representan lo mismo.
+Si ya existe “Contacto”, reemplazarlo por los nuevos campos de contacto.
+Si falta algún dato, mostrar “Sin información”.
+
+2. DATOS DUMMY
+
+Si el proyecto usa datos mock, JSON local o arrays en código, agrega estos campos al modelo actual del productor con datos dummy realistas.
+
+No dejar los nuevos campos vacíos.
+
+Usar campos en camelCase:
+
+cultivo
+distrito
+nombreAreaCultivo
+productor
+idCofibeCg
+numeroProductor
+razonSocial
+representanteLegal
+direccionFiscal
+colonia
+municipio
+estado
+codigoPostal
+rfc
+nombreContacto
+telefonoContacto
+numeroCelular
+correoElectronico
+correoElectronicoProductor
+
+Ejemplo de datos dummy:
+
+cultivo: "Fresa"
+distrito: "Zamora"
+nombreAreaCultivo: "Zona Bajío Norte"
+productor: "Productor Ejemplo"
+idCofibeCg: "CG-0001"
+numeroProductor: "P-10001"
+razonSocial: "Agrícola Ejemplo S.A. de C.V."
+representanteLegal: "Juan Pérez López"
+direccionFiscal: "Carretera Nacional Km 12"
+colonia: "Centro"
+municipio: "Zamora"
+estado: "Michoacán"
+codigoPostal: "59600"
+rfc: "AEJ010101AB1"
+nombreContacto: "María González"
+telefonoContacto: "351 123 4567"
+numeroCelular: "351 987 6543"
+correoElectronico: "contacto@agricolaejemplo.com"
+correoElectronicoProductor: "productor@agricolaejemplo.com"
+
+No implementar carga real del Excel en esta fase. Solo completar datos dummy en los mocks actuales.
+
+3. ALERTAS
+
+En la ventana de Alertas existe un botón “Exportar CSV”.
+
+Modificar solo la exportación CSV para que el archivo incluya el detalle completo del productor.
+
+El orden de columnas del CSV debe ser:
+
+ID
+Fecha
+Severidad
+Mensaje
+Cultivo
+Distrito
+Nombre Área de Cultivo
+Productor
+ID COFIBE/CG
+Número de Productor
+Razón Social
+Representante Legal
+Dirección Fiscal
+Colonia
+Municipio
+Estado
+Código Postal
+RFC
+Nombre Contacto
+Teléfono Contacto
+Número de Celular
+Correo Electrónico
+Correo Electrónico Productor
+Resuelto
+
+No duplicar columnas como Productor, RFC, Zona o Estado.
+La columna Resuelto debe quedar al final.
+Reutiliza la función actual de exportación CSV si ya existe.
+
+4. VALIDACIÓN
+
+Validar que:
+- Productores siga abriendo correctamente.
+- “Ver Detalle” muestre los 19 campos con datos dummy.
+- No existan campos duplicados.
+- Alertas exporte el CSV con todas las columnas indicadas.
+- Dashboard, Reportes, Reglas y Scheduler no cambien.
+
+Aplica solo estos cambios mínimos.
