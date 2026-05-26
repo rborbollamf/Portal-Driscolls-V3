@@ -44,33 +44,120 @@ export default function ProducerDetailPage() {
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow">
-        <h1 className="text-3xl font-bold text-gray-900">{producer.displayName}</h1>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="text-3xl font-bold text-gray-900">{producer.displayName}</h1>
+          <span
+            className={`px-3 py-1 rounded text-sm font-medium ${
+              producer.status === "OK"
+                ? "bg-green-100 text-green-800"
+                : producer.status === "RISK"
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-red-100 text-red-800"
+            }`}
+          >
+            {producer.status}
+          </span>
+        </div>
+
+        <div className="border-t pt-5 space-y-5">
           <div>
-            <p className="text-sm text-gray-600">RFC</p>
-            <p className="font-medium">{SI(producer.rfc)}</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Datos de cultivo</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Cultivo</p>
+                <p className="font-medium">{SI(producer.cultivo)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Distrito</p>
+                <p className="font-medium">{SI(producer.distrito)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Nombre Área de Cultivo</p>
+                <p className="font-medium">{SI(producer.nombreAreaCultivo)}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Distrito</p>
-            <p className="font-medium">{SI(producer.distrito)}</p>
+
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Datos del productor</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Productor</p>
+                <p className="font-medium">{SI(producer.productor)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">ID COFIBE/CG</p>
+                <p className="font-medium">{SI(producer.idCofibeCg)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Número de Productor</p>
+                <p className="font-medium">{SI(producer.numeroProductor)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Razón Social</p>
+                <p className="font-medium">{SI(producer.razonSocial)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Representante Legal</p>
+                <p className="font-medium">{SI(producer.representanteLegal)}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Cultivo</p>
-            <p className="font-medium">{SI(producer.cultivo)}</p>
+
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Domicilio fiscal</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Dirección Fiscal</p>
+                <p className="font-medium">{SI(producer.direccionFiscal)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Colonia</p>
+                <p className="font-medium">{SI(producer.colonia)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Municipio</p>
+                <p className="font-medium">{SI(producer.municipio)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Estado</p>
+                <p className="font-medium">{SI(producer.estado)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Código Postal</p>
+                <p className="font-medium">{SI(producer.codigoPostal)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">RFC</p>
+                <p className="font-medium">{SI(producer.rfc)}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Estado</p>
-            <span
-              className={`px-2 py-1 rounded text-xs font-medium ${
-                producer.status === "OK"
-                  ? "bg-green-100 text-green-800"
-                  : producer.status === "RISK"
-                  ? "bg-yellow-100 text-yellow-800"
-                  : "bg-red-100 text-red-800"
-              }`}
-            >
-              {producer.status}
-            </span>
+
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Datos de contacto</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Nombre Contacto</p>
+                <p className="font-medium">{SI(producer.nombreContacto)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Teléfono Contacto</p>
+                <p className="font-medium">{SI(producer.telefonoContacto)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Número de Celular</p>
+                <p className="font-medium">{SI(producer.numeroCelular)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Correo Electrónico</p>
+                <p className="font-medium">{SI(producer.correoElectronico)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Correo Electrónico Productor</p>
+                <p className="font-medium">{SI(producer.correoElectronicoProductor)}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -116,105 +203,6 @@ export default function ProducerDetailPage() {
                 </div>
               </div>
 
-              <div className="border rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Datos de cultivo</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Cultivo</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.cultivo)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Distrito</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.distrito)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Nombre Área de Cultivo</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.nombreAreaCultivo)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Datos del productor</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Productor</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.productor)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">ID COFIBE/CG</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.idCofibeCg)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Número de Productor</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.numeroProductor)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Razón Social</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.razonSocial)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Representante Legal</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.representanteLegal)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Domicilio fiscal</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Dirección Fiscal</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.direccionFiscal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Colonia</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.colonia)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Municipio</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.municipio)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Estado</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.estado)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Código Postal</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.codigoPostal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">RFC</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.rfc)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Datos de contacto</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Nombre Contacto</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.nombreContacto)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Teléfono Contacto</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.telefonoContacto)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Número de Celular</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.numeroCelular)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Correo Electrónico</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.correoElectronico)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Correo Electrónico Productor</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{SI(producer.correoElectronicoProductor)}</p>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 

@@ -1,0 +1,80 @@
+Necesito hacer un ajuste mínimo de layout en el detalle de Productores.
+
+El cambio anterior ya agregó correctamente los nuevos campos del productor, pero quedaron dentro de la pestaña “Resumen”, debajo de las tarjetas de Razones Sociales, Ranchos y Cultivos.
+
+Ahora necesito mover esos campos para que se muestren en la tarjeta superior del detalle, justo debajo del título/nombre del productor, donde actualmente aparecen RFC, Distrito, Cultivo y Estado.
+
+No modificar lógica.
+No modificar datos dummy.
+No modificar CSV.
+No tocar Alertas.
+No tocar Dashboard.
+No tocar Reportes.
+No tocar Reglas.
+No tocar Scheduler.
+No instalar dependencias.
+No refactorizar componentes completos.
+
+Solo ajustar la ubicación visual de los campos.
+
+Objetivo visual:
+La tarjeta superior del detalle debe funcionar como la ficha general del productor.
+
+Debe mostrar el nombre del productor como título y debajo los siguientes campos en un grid limpio y responsive:
+
+- Cultivo
+- Distrito
+- Nombre Área de Cultivo
+- Productor
+- ID COFIBE/CG
+- Número de Productor
+- Razón Social
+- Representante Legal
+- Dirección Fiscal
+- Colonia
+- Municipio
+- Estado
+- Código Postal
+- RFC
+- Nombre Contacto
+- Teléfono Contacto
+- Número de Celular
+- Correo Electrónico
+- Correo Electrónico Productor
+
+Mantener el mismo look and feel actual:
+- Misma tarjeta superior
+- Mismos colores
+- Misma tipografía
+- Mismos bordes
+- Misma sombra
+- Mismo estilo de etiquetas y valores
+- Misma navegación de pestañas
+
+Ajuste específico:
+- Expandir la tarjeta superior para mostrar más campos.
+- Usar un grid de 3 o 4 columnas en escritorio.
+- Usar 1 o 2 columnas en pantallas pequeñas.
+- Los campos deben verse como actualmente se ven RFC, Distrito, Cultivo y Estado: etiqueta pequeña arriba y valor abajo.
+- Evitar que el diseño se vea saturado.
+- No duplicar campos.
+
+Importante:
+Si los campos completos ya se muestran abajo dentro de la pestaña “Resumen”, eliminarlos de esa ubicación o dejar de renderizarlos ahí para evitar duplicidad.
+
+La pestaña “Resumen” debe conservar únicamente sus elementos actuales, como:
+- Tarjetas de Razones Sociales
+- Ranchos
+- Cultivos
+- Demás información que ya tenía
+
+Validación:
+1. Abrir Productores.
+2. Entrar a “Ver Detalle”.
+3. Confirmar que debajo del nombre del productor aparecen todos los campos completos.
+4. Confirmar que los campos ya no aparecen duplicados dentro de la pestaña Resumen.
+5. Confirmar que las pestañas siguen funcionando igual.
+6. Confirmar que Alertas y Exportar CSV no cambiaron.
+7. Confirmar que Dashboard, Reportes, Reglas y Scheduler no cambiaron.
+
+Aplica solo este ajuste visual mínimo.
