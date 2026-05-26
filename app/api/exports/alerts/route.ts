@@ -87,11 +87,11 @@ export async function GET(request: NextRequest) {
       ].join(",");
     });
 
-    const csv = [header, ...rows].join("\n");
+    const csv = "\uFEFF" + [header, ...rows].join("\n");
 
     return new NextResponse(csv, {
       headers: {
-        "Content-Type": "text/csv",
+        "Content-Type": "text/csv;charset=utf-8;",
         "Content-Disposition": `attachment; filename="alertas-${periodo || "todas"}.csv"`,
       },
     });
