@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAlerts, getLegalEntity, getProducer } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/middleware";
 
-// Helper function to properly escape CSV fields
-function escapeCSVField(field: string | number): string {
-  const fieldStr = String(field);
-  // Always wrap fields in quotes and escape internal quotes
+function escapeCSVField(field: string | number | null | undefined): string {
+  const fieldStr = String(field ?? "N/A");
   return `"${fieldStr.replace(/"/g, '""')}"`;
 }
 
@@ -30,29 +28,71 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const csv = [
-      "ID,Fecha,Severidad,Mensaje,Productor,RFC,Zona,Resuelto",
-      ...alerts.map((alert) => {
-        const legalEntity = getLegalEntity(alert.legalEntityId);
-        const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
+    const header = [
+      "ID",
+      "Fecha",
+      "Severidad",
+      "Mensaje",
+      "Cultivo",
+      "Distrito",
+      "Nombre Área de Cultivo",
+      "Productor",
+      "ID COFIBE/CG",
+      "Número de Productor",
+      "Razón Social",
+      "Representante Legal",
+      "Dirección Fiscal",
+      "Colonia",
+      "Municipio",
+      "Estado",
+      "Código Postal",
+      "RFC",
+      "Nombre Contacto",
+      "Teléfono Contacto",
+      "Número de Celular",
+      "Correo Electrónico",
+      "Correo Electrónico Productor",
+      "Resuelto",
+    ].map(escapeCSVField).join(",");
 
-        return [
-          escapeCSVField(alert.id),
-          escapeCSVField(new Date(alert.createdAt).toLocaleDateString("es-MX")),
-          escapeCSVField(alert.severity),
-          escapeCSVField(alert.message),
-          escapeCSVField(producer?.displayName || "N/A"),
-          escapeCSVField(legalEntity?.rfc || "N/A"),
-          escapeCSVField(producer?.zona || "N/A"),
-          escapeCSVField(alert.resolvedAt ? "Sí" : "No"),
-        ].join(",");
-      }),
-    ].join("\n");
+    const rows = alerts.map((alert) => {
+      const legalEntity = getLegalEntity(alert.legalEntityId);
+      const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
+
+      return [
+        escapeCSVField(alert.id),
+        escapeCSVField(new Date(alert.createdAt).toLocaleDateString("es-MX")),
+        escapeCSVField(alert.severity),
+        escapeCSVField(alert.message),
+        escapeCSVField(producer?.cultivo),
+        escapeCSVField(producer?.distrito),
+        escapeCSVField(producer?.nombreAreaCultivo),
+        escapeCSVField(producer?.productor ?? producer?.displayName),
+        escapeCSVField(producer?.idCofibeCg),
+        escapeCSVField(producer?.numeroProductor),
+        escapeCSVField(producer?.razonSocial ?? producer?.displayName),
+        escapeCSVField(producer?.representanteLegal),
+        escapeCSVField(producer?.direccionFiscal),
+        escapeCSVField(producer?.colonia),
+        escapeCSVField(producer?.municipio),
+        escapeCSVField(producer?.estado),
+        escapeCSVField(producer?.codigoPostal),
+        escapeCSVField(legalEntity?.rfc ?? producer?.rfc),
+        escapeCSVField(producer?.nombreContacto ?? producer?.contacto),
+        escapeCSVField(producer?.telefonoContacto ?? producer?.phone),
+        escapeCSVField(producer?.numeroCelular),
+        escapeCSVField(producer?.correoElectronico ?? producer?.email),
+        escapeCSVField(producer?.correoElectronicoProductor),
+        escapeCSVField(alert.resolvedAt ? "Sí" : "No"),
+      ].join(",");
+    });
+
+    const csv = [header, ...rows].join("\n");
 
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="alertas-${periodo || 'todas'}.csv"`,
+        "Content-Disposition": `attachment; filename="alertas-${periodo || "todas"}.csv"`,
       },
     });
   } catch (error) {
