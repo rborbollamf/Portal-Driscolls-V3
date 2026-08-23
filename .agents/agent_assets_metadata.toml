@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "7zzlFvert_Rcsv2NIKaLI"
+uri = "file://attached_assets/reporte-tecnico-funcional-portal-monitoreo.html"
+type = "text"
+title = "Reporte técnico y funcional — Portal de Monitoreo"
+description = "Informe en español sobre funcionalidades, alcance actual, arquitectura vigente, brechas y plan de liberación en AWS."
