@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = (page - 1) * limit;
 
-    const { producers, total } = await getProducers({ zona, status, limit, offset });
+    const producerId = auth.userRole === "PRODUCER" ? auth.producerId : undefined;
+    const { producers, total } = await getProducers({ producerId, zona, status, limit, offset });
 
     const enrichedProducers = await Promise.all(producers.map(async (producer) => {
       const [legalEntities, ranches] = await Promise.all([

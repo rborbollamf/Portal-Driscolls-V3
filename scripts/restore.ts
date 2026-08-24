@@ -1,6 +1,10 @@
 import fs from "fs/promises";
 import { exportDatabaseSnapshot, getDatabaseCounts, getPool, restoreDatabaseSnapshot } from "../lib/db";
-import { snapshotCounts, validateDatabaseSnapshot } from "../lib/db/snapshot";
+import {
+  normalizeLegacyProducerAssociations,
+  snapshotCounts,
+  validateDatabaseSnapshot,
+} from "../lib/db/snapshot";
 import { type DatabaseBackup, verifyBackup } from "./backup";
 
 export async function restoreBackup(filePath: string, options: { confirmed?: boolean } = {}) {
@@ -9,14 +13,15 @@ export async function restoreBackup(filePath: string, options: { confirmed?: boo
   }
   if (!options.confirmed) throw new Error("Restoring database contents requires explicit confirmation.");
   const backup = verifyBackup(JSON.parse(await fs.readFile(filePath, "utf8")) as DatabaseBackup);
-  validateDatabaseSnapshot(backup.snapshot);
-  const expected = snapshotCounts(backup.snapshot);
+  const snapshot = normalizeLegacyProducerAssociations(backup.snapshot);
+  validateDatabaseSnapshot(snapshot);
+  const expected = snapshotCounts(snapshot);
   if (JSON.stringify(expected) !== JSON.stringify(backup.counts)) throw new Error("Backup record counts do not match its contents.");
-  await restoreDatabaseSnapshot(backup.snapshot, { replace: true });
+  await restoreDatabaseSnapshot(snapshot, { replace: true });
   const actual = await getDatabaseCounts();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("Restore verification failed: record counts differ.");
   const restoredSnapshot = await exportDatabaseSnapshot();
-  if (JSON.stringify(restoredSnapshot) !== JSON.stringify(backup.snapshot)) {
+  if (JSON.stringify(restoredSnapshot) !== JSON.stringify(snapshot)) {
     throw new Error("Restore verification failed: restored content differs from the backup.");
   }
   console.log("Backup restored and verified:", actual);

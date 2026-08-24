@@ -1,7 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
 import { getDatabaseCounts, getPool, restoreDatabaseSnapshot } from "../lib/db";
-import { snapshotCounts, validateDatabaseSnapshot } from "../lib/db/snapshot";
+import type { Database } from "../types";
+import {
+  normalizeLegacyProducerAssociations,
+  snapshotCounts,
+  validateDatabaseSnapshot,
+} from "../lib/db/snapshot";
 
 export async function importJsonSnapshot(
   filePath = path.join(process.cwd(), "data", "db.json"),
@@ -14,7 +19,7 @@ export async function importJsonSnapshot(
     throw new Error("Replacing database contents requires explicit confirmation.");
   }
   const raw = await fs.readFile(filePath, "utf8");
-  const snapshot: unknown = JSON.parse(raw);
+  const snapshot = normalizeLegacyProducerAssociations(JSON.parse(raw) as Database);
   validateDatabaseSnapshot(snapshot);
   await restoreDatabaseSnapshot(snapshot, { replace: options.replace });
   const expected = snapshotCounts(snapshot);

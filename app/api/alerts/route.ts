@@ -15,23 +15,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let { alerts, total } = await getAlerts({
+    const { alerts, total } = await getAlerts({
+      producerId: auth.userRole === "PRODUCER" ? auth.producerId : undefined,
       severity,
+      zona,
       resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
       limit,
       offset,
     });
-
-    if (zona) {
-      const enriched = await Promise.all(alerts.map(async (alert) => {
-        const legalEntity = await getLegalEntity(alert.legalEntityId);
-        if (!legalEntity) return false;
-        const producer = await getProducer(legalEntity.producerId);
-        return producer?.zona === zona;
-      }));
-      alerts = alerts.filter((_, index) => enriched[index]);
-      total = alerts.length;
-    }
 
     const enrichedAlerts = await Promise.all(alerts.map(async (alert) => {
       const legalEntity = await getLegalEntity(alert.legalEntityId);

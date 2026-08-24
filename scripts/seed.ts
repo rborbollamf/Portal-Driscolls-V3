@@ -19,12 +19,6 @@ async function buildDemoSnapshot(): Promise<Database> {
     bcrypt.hash("Analyst123!", 10),
     bcrypt.hash("Producer123!", 10),
   ]);
-  snapshot.users.push(
-    { id: generateId(), name: "Admin User", email: "admin@demo.local", role: "ADMIN", hash: adminHash, isActive: true, createdAt: now },
-    { id: generateId(), name: "Analyst User", email: "analyst@demo.local", role: "ANALYST", hash: analystHash, isActive: true, createdAt: now },
-    { id: generateId(), name: "Producer User", email: "producer@demo.local", role: "PRODUCER", hash: producerHash, isActive: true, createdAt: now },
-  );
-
   const producerData: Omit<Producer, "id" | "status">[] = [
     { displayName: "Agrícola Berrymex SA de CV", rfc: "ABE120515KL8", zona: "Occidente", contacto: "Juan Pérez", email: "contacto@berrymex.mx", phone: "+52 333 123 4567" },
     { displayName: "Berries del Valle SPR", rfc: "BDV150320MP2", zona: "Bajío", contacto: "María González", email: "info@berriesvalle.mx", phone: "+52 461 234 5678" },
@@ -53,6 +47,15 @@ async function buildDemoSnapshot(): Promise<Database> {
       notas: "Datos demo generados localmente",
     });
   }
+
+  snapshot.users.push(
+    { id: generateId(), name: "Admin User", email: "admin@demo.local", role: "ADMIN", hash: adminHash, isActive: true, createdAt: now },
+    { id: generateId(), name: "Analyst User", email: "analyst@demo.local", role: "ANALYST", hash: analystHash, isActive: true, createdAt: now },
+    {
+      id: generateId(), name: "Producer User", email: "producer@demo.local", role: "PRODUCER",
+      producerId: snapshot.producers[0].id, hash: producerHash, isActive: true, createdAt: now,
+    },
+  );
 
   snapshot.rules.push(
     { id: generateId(), code: "SAT_OPINION_NEGATIVA", name: "Opinión SAT Negativa", description: "Detecta opinión de cumplimiento negativa", severityDefault: "HIGH", isActive: true, evaluatorType: "BOOLEAN", config: { checkField: "status", expectedValue: "negativa" } },

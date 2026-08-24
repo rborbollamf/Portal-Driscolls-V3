@@ -8,7 +8,7 @@ import {
   getValidationTasks,
   getAlerts,
 } from "@/lib/db";
-import { requireAuth } from "@/lib/auth/middleware";
+import { requireAuth, requireProducerAccess } from "@/lib/auth/middleware";
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +16,8 @@ export async function GET(
 ) {
   const auth = await requireAuth(["ADMIN", "ANALYST", "PRODUCER"]);
   if (!auth.authorized) return auth.response;
+  const accessDenied = requireProducerAccess(auth, params.id);
+  if (accessDenied) return accessDenied;
 
   try {
     const producer = await getProducer(params.id);

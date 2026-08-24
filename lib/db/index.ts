@@ -38,7 +38,7 @@ function json(value: unknown): Record<string, unknown> {
 function mapUser(row: QueryResultRow): User {
   return {
     id: row.id, name: row.name, email: row.email, role: row.role, hash: row.hash,
-    isActive: row.is_active, createdAt: toIso(row.created_at),
+    producerId: row.producer_id ?? undefined, isActive: row.is_active, createdAt: toIso(row.created_at),
   };
 }
 
@@ -166,24 +166,28 @@ export async function getUserByEmail(email: string) {
 }
 
 export async function createUser(user: User, db: Queryable = pool) {
-  return one(db, `INSERT INTO app_users (id, name, email, role, hash, is_active, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [user.id, user.name, user.email, user.role, user.hash, user.isActive, user.createdAt], mapUser);
+  if (user.role === "PRODUCER" && !user.producerId) {
+    throw new Error("Producer users must be associated with a producer.");
+  }
+  return one(db, `INSERT INTO app_users (id, name, email, role, producer_id, hash, is_active, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [user.id, user.name, user.email, user.role, user.producerId ?? null, user.hash, user.isActive, user.createdAt], mapUser);
 }
 
 export async function updateUser(id: string, updates: Partial<User>) {
   const fields: [string, unknown][] = [
     ["name", updates.name], ["email", updates.email], ["role", updates.role],
-    ["hash", updates.hash], ["is_active", updates.isActive],
+    ["producer_id", updates.producerId], ["hash", updates.hash], ["is_active", updates.isActive],
   ].filter(([, value]) => value !== undefined) as [string, unknown][];
   if (!fields.length) return getUser(id);
   const set = fields.map(([column], index) => `${column} = $${index + 2}`).join(", ");
   return one(pool, `UPDATE app_users SET ${set} WHERE id = $1 RETURNING *`, [id, ...fields.map(([, value]) => value)], mapUser);
 }
 
-export async function getProducers(filters?: { zona?: string; status?: string; limit?: number; offset?: number }) {
+export async function getProducers(filters?: { producerId?: string; zona?: string; status?: string; limit?: number; offset?: number }) {
   const conditions: string[] = [];
   const values: unknown[] = [];
+  if (filters?.producerId) { values.push(filters.producerId); conditions.push(`id = $${values.length}`); }
   if (filters?.zona) { values.push(filters.zona); conditions.push(`zona = $${values.length}`); }
   if (filters?.status) { values.push(filters.status); conditions.push(`status = $${values.length}`); }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -268,6 +272,16 @@ export async function getCrops(ranchId?: string) {
   return result.rows.map(mapCrop);
 }
 
+export async function getCropsForProducer(producerId: string) {
+  const result = await pool.query(`
+    SELECT crops.* FROM crops
+    INNER JOIN ranches ON ranches.id = crops.ranch_id
+    WHERE ranches.producer_id = $1
+    ORDER BY crops.temporada DESC
+  `, [producerId]);
+  return result.rows.map(mapCrop);
+}
+
 export async function createCrop(crop: Crop, db: Queryable = pool) {
   return one(db, "INSERT INTO crops (id, ranch_id, tipo, temporada) VALUES ($1, $2, $3, $4) RETURNING *",
     [crop.id, crop.ranchId, crop.tipo, crop.temporada], mapCrop);
@@ -299,6 +313,16 @@ export async function getValidationTasks(legalEntityId?: string) {
   return result.rows.map(mapValidationTask);
 }
 
+export async function getValidationTasksForProducer(producerId: string) {
+  const result = await pool.query(`
+    SELECT validation_tasks.* FROM validation_tasks
+    INNER JOIN legal_entities ON legal_entities.id = validation_tasks.legal_entity_id
+    WHERE legal_entities.producer_id = $1
+    ORDER BY validation_tasks.executed_at DESC
+  `, [producerId]);
+  return result.rows.map(mapValidationTask);
+}
+
 export async function createValidationTask(task: ValidationTask, db: Queryable = pool) {
   return one(db, `INSERT INTO validation_tasks
     (id, legal_entity_id, tipo, modo, estado, executed_at, payload_in, payload_out)
@@ -318,19 +342,33 @@ export async function updateValidationTask(id: string, updates: Partial<Validati
   return one(db, `UPDATE validation_tasks SET ${set} WHERE id = $1 RETURNING *`, [id, ...values], mapValidationTask);
 }
 
-export async function getAlerts(filters?: { legalEntityId?: string; severity?: string; resolved?: boolean; limit?: number; offset?: number }) {
+export async function getAlerts(filters?: {
+  legalEntityId?: string;
+  producerId?: string;
+  severity?: string;
+  zona?: string;
+  resolved?: boolean;
+  limit?: number;
+  offset?: number;
+}) {
   const conditions: string[] = [];
   const values: unknown[] = [];
-  if (filters?.legalEntityId) { values.push(filters.legalEntityId); conditions.push(`legal_entity_id = $${values.length}`); }
-  if (filters?.severity) { values.push(filters.severity); conditions.push(`severity = $${values.length}`); }
-  if (filters?.resolved !== undefined) conditions.push(filters.resolved ? "resolved_at IS NOT NULL" : "resolved_at IS NULL");
+  const needsProducerJoin = Boolean(filters?.producerId || filters?.zona);
+  const from = needsProducerJoin
+    ? "FROM alerts INNER JOIN legal_entities ON legal_entities.id = alerts.legal_entity_id INNER JOIN producers ON producers.id = legal_entities.producer_id"
+    : "FROM alerts";
+  if (filters?.legalEntityId) { values.push(filters.legalEntityId); conditions.push(`alerts.legal_entity_id = $${values.length}`); }
+  if (filters?.producerId) { values.push(filters.producerId); conditions.push(`legal_entities.producer_id = $${values.length}`); }
+  if (filters?.zona) { values.push(filters.zona); conditions.push(`producers.zona = $${values.length}`); }
+  if (filters?.severity) { values.push(filters.severity); conditions.push(`alerts.severity = $${values.length}`); }
+  if (filters?.resolved !== undefined) conditions.push(filters.resolved ? "alerts.resolved_at IS NOT NULL" : "alerts.resolved_at IS NULL");
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const count = await pool.query(`SELECT COUNT(*)::int AS total FROM alerts ${where}`, values);
+  const count = await pool.query(`SELECT COUNT(*)::int AS total ${from} ${where}`, values);
   const pageValues = [...values];
   let paging = "";
   if (filters?.limit !== undefined) { pageValues.push(filters.limit); paging += ` LIMIT $${pageValues.length}`; }
   if (filters?.offset !== undefined) { pageValues.push(filters.offset); paging += ` OFFSET $${pageValues.length}`; }
-  const result = await pool.query(`SELECT * FROM alerts ${where} ORDER BY created_at DESC${paging}`, pageValues);
+  const result = await pool.query(`SELECT alerts.* ${from} ${where} ORDER BY alerts.created_at DESC${paging}`, pageValues);
   return { alerts: result.rows.map(mapAlert), total: count.rows[0].total as number };
 }
 
@@ -482,13 +520,13 @@ export async function restoreDatabaseSnapshot(snapshot: Database, options: { rep
         DELETE FROM ranches;
         DELETE FROM legal_entities;
         DELETE FROM rules;
-        DELETE FROM producers;
         DELETE FROM app_users;
+        DELETE FROM producers;
       `);
     }
 
-    for (const user of snapshot.users) await createUser(user, client);
     for (const producer of snapshot.producers) await createProducer(producer, client);
+    for (const user of snapshot.users) await createUser(user, client);
     for (const entity of snapshot.legalEntities) await createLegalEntity(entity, client);
     for (const ranch of snapshot.ranches) await createRanch(ranch, client);
     for (const crop of snapshot.crops) await createCrop(crop, client);

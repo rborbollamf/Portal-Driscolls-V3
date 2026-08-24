@@ -5,6 +5,36 @@ const collections: (keyof Database)[] = [
   "financialSnapshots", "validationTasks", "alerts", "rules", "auditLogs",
 ];
 
+const legacyDemoProducerEmail = "producer@demo.local";
+const legacyDemoProducerRfc = "ABE120515KL8";
+
+export function normalizeLegacyProducerAssociations(snapshot: Database): Database {
+  const producerIdFor = (email: string) => {
+    const normalizedEmail = email.toLowerCase();
+    const matches = snapshot.producers.filter((producer) =>
+      [producer.email, producer.correoElectronico, producer.correoElectronicoProductor]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase() === normalizedEmail),
+    );
+    if (matches.length === 1) return matches[0].id;
+
+    if (normalizedEmail === legacyDemoProducerEmail) {
+      const demoMatches = snapshot.producers.filter((producer) => producer.rfc === legacyDemoProducerRfc);
+      return demoMatches.length === 1 ? demoMatches[0].id : undefined;
+    }
+    return undefined;
+  };
+
+  return {
+    ...snapshot,
+    users: snapshot.users.map((user) => (
+      user.role === "PRODUCER" && !user.producerId
+        ? { ...user, producerId: producerIdFor(user.email) }
+        : user
+    )),
+  };
+}
+
 function ids(items: Array<{ id: string }>, name: string) {
   const values = new Set<string>();
   for (const item of items) {
@@ -35,6 +65,14 @@ export function validateDatabaseSnapshot(input: unknown): asserts input is Datab
   ids(snapshot.rules!, "rules");
   ids(snapshot.auditLogs!, "auditLogs");
 
+  for (const user of snapshot.users!) {
+    if (user.role === "PRODUCER" && !user.producerId) {
+      throw new Error(`Producer user ${user.id} is not associated with a producer.`);
+    }
+    if (user.producerId && !producerIds.has(user.producerId)) {
+      throw new Error(`User ${user.id} references an unknown producer.`);
+    }
+  }
   for (const entity of snapshot.legalEntities!) {
     if (!producerIds.has(entity.producerId)) throw new Error(`Legal entity ${entity.id} references an unknown producer.`);
   }

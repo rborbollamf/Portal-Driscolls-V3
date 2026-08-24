@@ -1,11 +1,32 @@
-import { getAlerts, getProducers, getValidationTasks, getCrops } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import {
+  getAlerts,
+  getCrops,
+  getCropsForProducer,
+  getProducers,
+  getUser,
+  getValidationTasks,
+  getValidationTasksForProducer,
+} from "@/lib/db";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) redirect("/login");
+
+  const user = await getUser((session.user as any).id);
+  if (!user?.isActive) redirect("/login");
+  if (user.role === "PRODUCER" && !user.producerId) {
+    redirect("/login?error=producer_association_required");
+  }
+  const producerId = user.role === "PRODUCER" ? user.producerId : undefined;
+
   const [{ alerts }, { producers }, tasks, allCrops] = await Promise.all([
-    getAlerts({ resolved: false }),
-    getProducers({}),
-    getValidationTasks(),
-    getCrops(),
+    getAlerts({ resolved: false, producerId }),
+    getProducers({ producerId }),
+    producerId ? getValidationTasksForProducer(producerId) : getValidationTasks(),
+    producerId ? getCropsForProducer(producerId) : getCrops(),
   ]);
   const highAlerts = alerts.filter((a) => a.severity === "HIGH");
   const highRiskProducers = producers.filter((p) => p.status === "FAIL" || p.status === "RISK");
