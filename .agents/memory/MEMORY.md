@@ -1,1 +1,2 @@
 - [PostgreSQL recovery guarantees](postgres-recovery-guarantees.md) — backups must be transactionally consistent, and destructive recovery paths require explicit non-production safeguards.
+- [Post-merge database initialization](post-merge-database-initialization.md) — dependency sync, migrations and development-only data import must be safe to repeat after a merge.
