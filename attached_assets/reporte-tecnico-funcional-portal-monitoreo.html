@@ -231,7 +231,7 @@
       <div class="meta">
         <div>Fecha de elaboración<strong>23 de agosto de 2026</strong></div>
         <div>
-          Estado evaluado<strong>MVP funcional / ambiente de desarrollo</strong>
+          Estado evaluado<strong>MVP funcional con PostgreSQL en desarrollo</strong>
         </div>
         <div>
           Propósito<strong>Alcance, arquitectura y preparación para AWS</strong>
@@ -251,17 +251,27 @@
           El producto actual es un
           <strong>MVP navegable y funcional con datos de demostración</strong>.
           La capa de negocio, las reglas, la autenticación y los módulos de
-          consulta ya están implementados; sin embargo, la persistencia local,
-          los adaptadores externos simulados y la operación programada en
-          proceso impiden liberarlo todavía como un sistema productivo
-          multiusuario y escalable.
+          consulta ya están implementados. La persistencia fue migrada de un
+          archivo local a PostgreSQL transaccional en desarrollo, con
+          migraciones versionadas e inicialización validada de los datos
+          históricos. Aún quedan pendientes las integraciones externas reales,
+          la programación desacoplada, el endurecimiento de seguridad y la
+          operación productiva.
         </p>
         <div class="callout warning">
           <strong>Conclusión de preparación:</strong> no se recomienda publicar
-          el estado actual directamente a producción. Se requiere, como mínimo,
-          sustituir el archivo JSON por una base de datos administrada,
-          implementar integraciones reales, endurecer seguridad/autorización,
-          automatizar despliegues y habilitar observabilidad y respaldos.
+          el estado actual directamente a producción. La persistencia
+          transaccional ya es una base sólida, pero se requiere provisionar la
+          infraestructura administrada de producción, implementar integraciones
+          reales, endurecer seguridad/autorización, automatizar despliegues y
+          habilitar observabilidad y respaldos.
+        </div>
+        <div class="callout success">
+          <strong>Actualización relevante:</strong> el portal ya usa PostgreSQL
+          en desarrollo. Las migraciones son idempotentes, la carga inicial se
+          ejecuta sólo sobre una base vacía fuera de producción y el proceso
+          posterior a una fusión sincroniza dependencias y esquema de forma
+          repetible.
         </div>
       </section>
 
@@ -406,9 +416,10 @@
           Scheduler │ ├── Servicios de dominio │ ├── ValidationService │ ├──
           RuleEngine │ └── Scheduler (node-cron, dentro del proceso) │ ├──
           Adaptadores SAT / IMSS / Financiero / Legal │ └── Respuestas simuladas
-          (mock) │ └── Persistencia local: data/db.json └── usuarios,
-          productores, entidades, ranchos, cultivos, snapshots financieros,
-          tareas, alertas, reglas y auditoría
+          (mock) │ └── PostgreSQL gestionado en desarrollo ├── migraciones SQL
+          versionadas ├── importación inicial validada (sólo desarrollo) └──
+          usuarios, productores, entidades, ranchos, cultivos, snapshots
+          financieros, tareas, alertas, reglas y auditoría
         </div>
 
         <h3>Componentes principales</h3>
@@ -455,8 +466,11 @@
             </tr>
             <tr>
               <td>Datos</td>
-              <td>Archivo JSON local</td>
-              <td>Persistencia de todas las entidades del MVP.</td>
+              <td>PostgreSQL, migraciones SQL y scripts de respaldo/restauración</td>
+              <td>
+                Persistencia transaccional de las entidades del MVP; el JSON se
+                conserva únicamente como fuente histórica de importación.
+              </td>
             </tr>
             <tr>
               <td>Integraciones</td>
@@ -473,9 +487,10 @@
         <p>
           <span class="tag current">Actual</span> Usuarios, productores, razones
           sociales, ranchos, cultivos, snapshots financieros, tareas de
-          validación, alertas, reglas y bitácora de auditoría. Las relaciones se
-          resuelven actualmente mediante identificadores dentro del archivo
-          local.
+          validación, alertas, reglas y bitácora de auditoría. Las relaciones
+          operativas se resuelven con llaves foráneas e identificadores en
+          PostgreSQL; los atributos complementarios de productor se conservan
+          en un perfil JSONB.
         </p>
       </section>
 
@@ -493,12 +508,14 @@
             <tr>
               <td>Persistencia</td>
               <td>
-                Archivo JSON compartido, con lectura/escritura completa y sin
-                transacciones ni concurrencia.
+                PostgreSQL transaccional en desarrollo, con migraciones
+                versionadas, importación histórica protegida y utilidades de
+                respaldo/restauración validadas fuera de producción.
               </td>
               <td>
-                Migrar a PostgreSQL administrado, modelar relaciones, crear
-                migraciones, respaldos y plan de recuperación.
+                Provisionar RDS PostgreSQL Multi-AZ, automatizar respaldos y
+                recuperación, definir RTO/RPO y ejecutar pruebas periódicas de
+                restauración en un entorno aislado.
               </td>
             </tr>
             <tr>
@@ -546,8 +563,9 @@
             <tr>
               <td>Operación</td>
               <td>
-                No se observan monitoreo estructurado, alarmas, trazas ni
-                estrategia de respaldo.
+                Existe un hook repetible de post-fusión para dependencias,
+                migraciones e inicialización segura de desarrollo, pero no se
+                observan monitoreo estructurado, alarmas ni trazas operativas.
               </td>
               <td>
                 Incorporar logs centralizados, métricas, alertas operativas,
@@ -716,7 +734,9 @@
           </li>
           <li>
             Modelo PostgreSQL, estrategia de migración desde el dataset actual,
-            índices, retención de backups y prueba de restauración.
+            índices, retención de backups y prueba de restauración. La
+            migración y las herramientas de recuperación ya existen en
+            desarrollo; falta su operación administrada en AWS.
           </li>
           <li>
             Repositorio con CI/CD, escaneo de dependencias, análisis estático,
@@ -746,9 +766,10 @@
           <tbody>
             <tr>
               <td><span class="priority">1. Base productiva</span></td>
-              <td>Eliminar limitantes de demo.</td>
+              <td>Extender a AWS la base de datos ya migrada en desarrollo.</td>
               <td>
-                PostgreSQL, migraciones, modelo Usuario–Productor, validación
+                RDS PostgreSQL Multi-AZ, estrategia de migración hacia el
+                ambiente productivo, modelo Usuario–Productor, validación
                 estricta de entradas, secretos y eliminación de
                 credenciales/datos demo.
               </td>
@@ -795,8 +816,9 @@
           <strong>La liberación debe aprobarse únicamente cuando:</strong>
           <ul>
             <li>
-              La información operativa esté en PostgreSQL con respaldos y una
-              restauración probada.
+              La información operativa esté en PostgreSQL productivo, con
+              respaldos administrados, una restauración probada y objetivos
+              RTO/RPO aprobados.
             </li>
             <li>
               Las cuentas demo y credenciales expuestas hayan sido eliminadas,
@@ -827,9 +849,10 @@
       </section>
 
       <footer>
-        Documento basado en la revisión del código y configuración disponibles
-        en el entorno de desarrollo. La arquitectura AWS propuesta es una
-        recomendación de referencia; tamaños, costos, región, RTO/RPO y
+        Documento actualizado con la revisión del código y configuración
+        disponibles en el entorno de desarrollo, incluida la migración a
+        PostgreSQL y el proceso de post-fusión. La arquitectura AWS propuesta
+        es una recomendación de referencia; tamaños, costos, región, RTO/RPO y
         controles regulatorios deben definirse con los responsables de negocio,
         seguridad y plataforma antes de la implementación.
       </footer>
