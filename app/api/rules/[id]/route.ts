@@ -11,7 +11,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const updatedRule = updateRule(params.id, body);
+    const updatedRule = await updateRule(params.id, body);
 
     if (!updatedRule) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function DELETE(
   if (!auth.authorized) return auth.response;
 
   try {
-    const deleted = deleteRule(params.id);
+    const deleted = await deleteRule(params.id);
 
     if (!deleted) {
       return NextResponse.json(

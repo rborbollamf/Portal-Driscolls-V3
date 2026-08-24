@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    let { alerts, total } = getAlerts({
+    let { alerts, total } = await getAlerts({
       severity,
       resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
       limit,
@@ -23,25 +23,26 @@ export async function GET(request: NextRequest) {
     });
 
     if (zona) {
-      alerts = alerts.filter((alert) => {
-        const legalEntity = getLegalEntity(alert.legalEntityId);
+      const enriched = await Promise.all(alerts.map(async (alert) => {
+        const legalEntity = await getLegalEntity(alert.legalEntityId);
         if (!legalEntity) return false;
-        const producer = getProducer(legalEntity.producerId);
+        const producer = await getProducer(legalEntity.producerId);
         return producer?.zona === zona;
-      });
+      }));
+      alerts = alerts.filter((_, index) => enriched[index]);
       total = alerts.length;
     }
 
-    const enrichedAlerts = alerts.map((alert) => {
-      const legalEntity = getLegalEntity(alert.legalEntityId);
-      const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
+    const enrichedAlerts = await Promise.all(alerts.map(async (alert) => {
+      const legalEntity = await getLegalEntity(alert.legalEntityId);
+      const producer = legalEntity ? await getProducer(legalEntity.producerId) : null;
 
       return {
         ...alert,
         legalEntity,
         producer,
       };
-    });
+    }));
 
     return NextResponse.json({
       alerts: enrichedAlerts,

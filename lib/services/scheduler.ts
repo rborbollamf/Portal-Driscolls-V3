@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { getLegalEntities, createAuditLog } from "@/lib/db";
+import { getLegalEntities, getProducer, createAuditLog } from "@/lib/db";
 import { ValidationService } from "./validation";
 import { generateId } from "@/lib/utils";
 
@@ -47,15 +47,16 @@ class Scheduler {
         legalEntityIds = cohort;
       } else if (cohort.startsWith("zona:")) {
         const zona = cohort.substring(5);
-        const allEntities = getLegalEntities();
-        legalEntityIds = allEntities
-          .filter((le) => {
-            const producer = require("@/lib/db").getProducer(le.producerId);
-            return producer?.zona === zona;
-          })
-          .map((le) => le.id);
+        const allEntities = await getLegalEntities();
+        const scopedEntities = await Promise.all(allEntities.map(async (entity) => ({
+          entity,
+          producer: await getProducer(entity.producerId),
+        })));
+        legalEntityIds = scopedEntities
+          .filter(({ producer }) => producer?.zona === zona)
+          .map(({ entity }) => entity.id);
       } else {
-        const allEntities = getLegalEntities();
+        const allEntities = await getLegalEntities();
         legalEntityIds = allEntities.map((le) => le.id);
       }
 
@@ -65,7 +66,7 @@ class Scheduler {
         try {
           await ValidationService.runCompleteDiagnostic(legalEntityId, "RECURRENTE");
           
-          createAuditLog({
+          await createAuditLog({
             id: generateId(),
             actorUserId: "system",
             action: "recurrent_validation",

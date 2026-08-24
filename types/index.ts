@@ -33,6 +33,24 @@ export interface Producer {
   email: string;
   phone: string;
   status?: ValidationTaskStatus;
+  cultivo?: string;
+  distrito?: string;
+  nombreAreaCultivo?: string;
+  productor?: string;
+  idCofibeCg?: string;
+  numeroProductor?: string;
+  razonSocial?: string;
+  representanteLegal?: string;
+  direccionFiscal?: string;
+  colonia?: string;
+  municipio?: string;
+  estado?: string;
+  codigoPostal?: string;
+  nombreContacto?: string;
+  telefonoContacto?: string;
+  numeroCelular?: string;
+  correoElectronico?: string;
+  correoElectronicoProductor?: string;
 }
 
 export interface LegalEntity {

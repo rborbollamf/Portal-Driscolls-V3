@@ -1,0 +1,1 @@
+- [PostgreSQL recovery guarantees](postgres-recovery-guarantees.md) — backups must be transactionally consistent, and destructive recovery paths require explicit non-production safeguards.

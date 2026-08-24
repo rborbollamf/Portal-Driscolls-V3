@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateAlert, createAuditLog } from "@/lib/db";
+import { resolveAlertWithAudit } from "@/lib/db";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth/middleware";
 
@@ -11,18 +11,7 @@ export async function PATCH(
   if (!auth.authorized) return auth.response;
 
   try {
-    const updatedAlert = updateAlert(params.id, {
-      resolvedAt: new Date().toISOString(),
-    });
-
-    if (!updatedAlert) {
-      return NextResponse.json(
-        { error: "Alert not found" },
-        { status: 404 }
-      );
-    }
-
-    createAuditLog({
+    const updatedAlert = await resolveAlertWithAudit(params.id, {
       id: generateId(),
       actorUserId: auth.userId,
       action: "resolve_alert",
@@ -31,6 +20,13 @@ export async function PATCH(
       at: new Date().toISOString(),
       metadata: {},
     });
+
+    if (!updatedAlert) {
+      return NextResponse.json(
+        { error: "Alert not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json(updatedAlert);
   } catch (error) {

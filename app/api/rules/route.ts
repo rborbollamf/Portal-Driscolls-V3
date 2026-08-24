@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRules, createRule, updateRule } from "@/lib/db";
+import { getRules, createRule } from "@/lib/db";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth/middleware";
 
@@ -8,7 +8,7 @@ export async function GET() {
   if (!auth.authorized) return auth.response;
 
   try {
-    const rules = getRules();
+    const rules = await getRules();
     return NextResponse.json(rules);
   } catch (error) {
     return NextResponse.json(
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       config: body.config || {},
     };
 
-    createRule(rule);
+    await createRule(rule);
 
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {

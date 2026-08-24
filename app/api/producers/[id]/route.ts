@@ -18,7 +18,7 @@ export async function GET(
   if (!auth.authorized) return auth.response;
 
   try {
-    const producer = getProducer(params.id);
+    const producer = await getProducer(params.id);
 
     if (!producer) {
       return NextResponse.json(
@@ -27,23 +27,25 @@ export async function GET(
       );
     }
 
-    const legalEntities = getLegalEntities(producer.id);
-    const ranches = getRanches(producer.id);
-    const crops = ranches.flatMap((ranch) => ({
-      ...getCrops(ranch.id).map((crop) => ({ ...crop, ranchName: ranch.nombre })),
-    })).flat();
+    const [legalEntities, ranches] = await Promise.all([
+      getLegalEntities(producer.id),
+      getRanches(producer.id),
+    ]);
+    const crops = (await Promise.all(ranches.map(async (ranch) =>
+      (await getCrops(ranch.id)).map((crop) => ({ ...crop, ranchName: ranch.nombre }))
+    ))).flat();
 
-    const financialSnapshots = legalEntities.flatMap((le) =>
+    const financialSnapshots = (await Promise.all(legalEntities.map((le) =>
       getFinancialSnapshots(le.id)
-    );
+    ))).flat();
 
-    const validationTasks = legalEntities.flatMap((le) =>
+    const validationTasks = (await Promise.all(legalEntities.map((le) =>
       getValidationTasks(le.id)
-    );
+    ))).flat();
 
-    const alerts = legalEntities.flatMap((le) =>
-      getAlerts({ legalEntityId: le.id, resolved: false }).alerts
-    );
+    const alerts = (await Promise.all(legalEntities.map(async (le) =>
+      (await getAlerts({ legalEntityId: le.id, resolved: false })).alerts
+    ))).flat();
 
     return NextResponse.json({
       producer,

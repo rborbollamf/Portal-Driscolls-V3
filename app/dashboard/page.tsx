@@ -1,15 +1,15 @@
-import { getAlerts, getProducers, getValidationTasks, getRanches, getCrops } from "@/lib/db";
+import { getAlerts, getProducers, getValidationTasks, getCrops } from "@/lib/db";
 
-export default function DashboardPage() {
-  const { alerts } = getAlerts({ resolved: false });
+export default async function DashboardPage() {
+  const [{ alerts }, { producers }, tasks, allCrops] = await Promise.all([
+    getAlerts({ resolved: false }),
+    getProducers({}),
+    getValidationTasks(),
+    getCrops(),
+  ]);
   const highAlerts = alerts.filter((a) => a.severity === "HIGH");
-  const { producers } = getProducers({});
   const highRiskProducers = producers.filter((p) => p.status === "FAIL" || p.status === "RISK");
-  const tasks = getValidationTasks();
   const pendingTasks = tasks.filter((t) => t.estado === "PENDIENTE");
-
-  const allRanches = getRanches();
-  const allCrops = allRanches.flatMap((ranch) => getCrops(ranch.id));
 
   const zonaStats = producers.reduce((acc: any, producer) => {
     acc[producer.zona] = (acc[producer.zona] || 0) + 1;

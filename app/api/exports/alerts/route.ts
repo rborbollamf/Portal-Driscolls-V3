@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const periodo = searchParams.get("periodo");
 
-    let { alerts } = getAlerts({});
+    let { alerts } = await getAlerts({});
 
     if (periodo) {
       const [year, month] = periodo.split("-");
@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
       "Resuelto",
     ].map(escapeCSVField).join(",");
 
-    const rows = alerts.map((alert) => {
-      const legalEntity = getLegalEntity(alert.legalEntityId);
-      const producer = legalEntity ? getProducer(legalEntity.producerId) : null;
+    const rows = await Promise.all(alerts.map(async (alert) => {
+      const legalEntity = await getLegalEntity(alert.legalEntityId);
+      const producer = legalEntity ? await getProducer(legalEntity.producerId) : null;
 
       return [
         escapeCSVField(alert.id),
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
         escapeCSVField(producer?.correoElectronicoProductor),
         escapeCSVField(alert.resolvedAt ? "Sí" : "No"),
       ].join(",");
-    });
+    }));
 
     const csv = "\uFEFF" + [header, ...rows].join("\n");
 

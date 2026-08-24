@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       result = await ValidationService.runCompleteDiagnostic(legalEntityId, modo);
     }
 
-    createAuditLog({
+    await createAuditLog({
       id: generateId(),
       actorUserId: auth.userId,
       action: "run_validation",

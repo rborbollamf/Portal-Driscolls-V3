@@ -24,7 +24,7 @@ Portal de diagnóstico y monitoreo para productores agrícolas (caso Driscoll's)
 - **Next.js API Routes**
 - **NextAuth** para autenticación (email/password + JWT)
 - **node-cron** para tareas programadas
-- **Almacenamiento en JSON** (data/db.json)
+- **PostgreSQL administrado** con repositorio transaccional y consultas parametrizadas
 
 ### Seguridad
 - **bcrypt** para hashing de contraseñas
@@ -57,16 +57,16 @@ Portal de diagnóstico y monitoreo para productores agrícolas (caso Driscoll's)
 ├── lib/                     # Lógica de negocio
 │   ├── adapters/           # Adapters mock (SAT, IMSS, Financial)
 │   ├── auth/               # Configuración NextAuth
-│   ├── db/                 # Sistema de almacenamiento JSON
+│   ├── db/                 # Repositorio PostgreSQL y validación de respaldos
 │   ├── rules/              # Motor de reglas
 │   ├── services/           # Servicios (validation, scheduler)
 │   └── utils/              # Utilidades
-├── scripts/                 # Scripts de utilidad
-│   └── seed.ts             # Seed de datos demo
+├── db/migrations/           # Migraciones SQL versionadas
+├── scripts/                 # Migración, importación, respaldo y restauración
 ├── types/                   # Definiciones TypeScript
 │   └── index.ts            # Tipos principales
-└── data/                    # Almacenamiento JSON
-    └── db.json             # Base de datos (generada)
+└── data/
+    └── db.json             # Fuente histórica para una importación inicial
 ```
 
 ## 🚀 Configuración e Instalación
@@ -94,13 +94,14 @@ ENABLE_GOOGLE_AUTH=false
 npm install
 ```
 
-### 3. Generar Datos Demo
+### 3. Inicializar PostgreSQL
 
 ```bash
-npm run seed
+npm run db:migrate
+npm run seed -- --confirm
 ```
 
-Esto creará:
+La semilla demo autocontenida crea:
 - 3 usuarios demo (admin, analyst, producer)
 - 10 productores con perfiles variados
 - 21 razones sociales
@@ -147,7 +148,7 @@ graph TB
     end
     
     subgraph Storage
-        K[JSON Database]
+        K[PostgreSQL]
     end
     
     subgraph External
@@ -241,19 +242,28 @@ npm run dev          # Inicia servidor en puerto 5000
 npm run build        # Construye para producción
 npm run start        # Inicia servidor de producción
 
-# Utilidades
-npm run seed         # Genera datos demo
-npm run lint         # Ejecuta ESLint
+# Datos y recuperación
+npm run db:migrate                 # Aplica las migraciones SQL pendientes
+npm run db:import                  # Importa una fuente JSON histórica solo si la base está vacía
+npm run seed -- --confirm           # Reemplaza los datos de desarrollo con el dataset demo (no disponible en producción)
+npm run db:backup                  # Crea un respaldo lógico con checksum (carpeta backups/)
+npm run db:restore -- archivo --confirm # Restaura un respaldo fuera de producción
+npm run db:restore-test            # Prueba un respaldo/restauración en desarrollo
+npm run lint                       # Ejecuta ESLint
 ```
 
-## 🔄 Migración a PostgreSQL (Futuro)
+## 🗄️ Operación de datos
 
-El sistema está diseñado para migrar fácilmente de JSON a PostgreSQL:
+- `data/db.json` se conserva solo como fuente de migración; la aplicación nunca lo lee ni escribe.
+- Las migraciones están en `db/migrations/` y se registran en `schema_migrations`.
+- El respaldo es un JSON lógico con conteos y SHA-256; se escribe con permisos de propietario y `backups/` se excluye de Git.
+- La importación que reemplaza datos y la restauración exigen confirmación explícita; ambas están bloqueadas cuando `NODE_ENV=production`.
+- La restauración verifica formato, checksum, relaciones, conteos y el contenido completo restaurado antes de confirmar que el proceso fue exitoso.
+- En Replit, los cambios de esquema de producción se aplican mediante el flujo de Publish administrado. No ejecute scripts de DDL ni restauraciones directas contra producción.
 
-1. Instalar Prisma: `npm install @prisma/client prisma`
-2. Crear schema en `prisma/schema.prisma`
-3. Ejecutar `npx prisma migrate dev`
-4. Reemplazar funciones en `lib/db/index.ts`
+### Simulacro de restauración
+
+Ejecute `npm run db:restore-test` periódicamente en desarrollo. El comando crea un respaldo temporal, introduce una bitácora de prueba, restaura el respaldo y confirma que el estado resultante coincide exactamente con el punto de partida.
 
 ## 🚀 Próximas Fases
 
@@ -269,7 +279,7 @@ El sistema está diseñado para migrar fácilmente de JSON a PostgreSQL:
 - **Sin Docker**: El entorno usa Nix, no se requiere virtualización
 - **Puerto 5000**: Único puerto no bloqueado por firewall en Replit
 - **LSP Warnings**: Normales hasta que Next.js compile, se resuelven al iniciar
-- **JSON Database**: Para prototipado rápido, lista para migrar a PostgreSQL
+- **PostgreSQL**: La aplicación requiere la base administrada configurada por Replit; no configure ni exponga credenciales manualmente.
 
 ## 🤝 Contribución
 

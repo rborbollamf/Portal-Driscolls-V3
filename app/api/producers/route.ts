@@ -15,13 +15,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = (page - 1) * limit;
 
-    const { producers, total } = getProducers({ zona, status, limit, offset });
+    const { producers, total } = await getProducers({ zona, status, limit, offset });
 
-    const enrichedProducers = producers.map((producer) => {
-      const legalEntities = getLegalEntities(producer.id);
-      const ranches = getRanches(producer.id);
-      
-      const allCrops = ranches.flatMap((ranch) => getCrops(ranch.id));
+    const enrichedProducers = await Promise.all(producers.map(async (producer) => {
+      const [legalEntities, ranches] = await Promise.all([
+        getLegalEntities(producer.id),
+        getRanches(producer.id),
+      ]);
+      const allCrops = (await Promise.all(ranches.map((ranch) => getCrops(ranch.id)))).flat();
 
       return {
         ...producer,
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
         ranchesCount: ranches.length,
         cropsCount: allCrops.length,
       };
-    });
+    }));
 
     return NextResponse.json({
       producers: enrichedProducers,
@@ -63,10 +64,10 @@ export async function POST(request: NextRequest) {
       contacto: body.contacto,
       email: body.email,
       phone: body.phone,
-      status: "OK",
+      status: "OK" as const,
     };
 
-    createProducer(producer);
+    await createProducer(producer);
 
     return NextResponse.json(producer, { status: 201 });
   } catch (error) {

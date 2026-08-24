@@ -11,6 +11,7 @@ import {
   getProducer,
   updateProducer,
   createFinancialSnapshot,
+  withTransaction,
 } from "@/lib/db";
 import { SatAdapter } from "@/lib/adapters/sat";
 import { ImssAdapter } from "@/lib/adapters/imss";
@@ -30,7 +31,7 @@ export class ValidationService {
     tipo: ValidationTaskType,
     modo: ValidationTaskMode
   ): Promise<ValidationResult> {
-    const legalEntity = getLegalEntity(legalEntityId);
+    const legalEntity = await getLegalEntity(legalEntityId);
     
     if (!legalEntity) {
       throw new Error("Legal entity not found");
@@ -48,11 +49,12 @@ export class ValidationService {
       payloadOut: {},
     };
 
-    createValidationTask(task);
+    await createValidationTask(task);
 
     try {
       let payloadOut: any = {};
       let context: any = { legalEntity };
+      let newSnapshot: any;
 
       if (tipo === "SAT") {
         const satStatus = await SatAdapter.getStatus(legalEntity);
@@ -66,7 +68,7 @@ export class ValidationService {
         const financialSnapshot = await FinancialAdapter.getSnapshot(legalEntity);
         payloadOut.financialSnapshot = financialSnapshot;
         
-        const newSnapshot = {
+        newSnapshot = {
           id: generateId(),
           legalEntityId,
           periodo: new Date().toISOString().substring(0, 7),
@@ -76,18 +78,17 @@ export class ValidationService {
           egresosAnuales: financialSnapshot.egresosAnuales,
           notas: `Auto-generated from ${tipo} validation`,
         };
-        createFinancialSnapshot(newSnapshot);
-        context.financialSnapshot = financialSnapshot;
+        context.financialSnapshot = newSnapshot;
       }
 
       if (!context.financialSnapshot) {
-        const existingSnapshot = getLatestFinancialSnapshot(legalEntityId);
+        const existingSnapshot = await getLatestFinancialSnapshot(legalEntityId);
         if (existingSnapshot) {
           context.financialSnapshot = existingSnapshot;
         }
       }
 
-      const rules = getRules(true);
+      const rules = await getRules(true);
       const filteredRules = rules.filter((rule) => {
         if (tipo === "SAT" && rule.code === "SAT_OPINION_NEGATIVA") return true;
         if (tipo === "IMSS" && rule.code === "IMSS_SUSPENSION") return true;
@@ -98,27 +99,20 @@ export class ValidationService {
 
       const { alerts: newAlerts } = RuleEngine.evaluateAll(filteredRules, context);
 
-      newAlerts.forEach((alert) => {
-        createAlert(alert);
-      });
-
       const status = newAlerts.some((a) => a.severity === "HIGH")
         ? "FAIL"
         : newAlerts.some((a) => a.severity === "MEDIUM")
         ? "RISK"
         : "OK";
 
-      updateValidationTask(taskId, {
-        estado: status,
-        payloadOut,
+      const producer = await getProducer(legalEntity.producerId);
+      await withTransaction(async (client) => {
+        if (newSnapshot) await createFinancialSnapshot(newSnapshot, client);
+        for (const alert of newAlerts) await createAlert(alert, client);
+        await updateValidationTask(taskId, { estado: status, payloadOut }, client);
+        await updateLegalEntity(legalEntityId, { status }, client);
+        if (producer) await updateProducer(producer.id, { status }, client);
       });
-
-      updateLegalEntity(legalEntityId, { status });
-
-      const producer = getProducer(legalEntity.producerId);
-      if (producer) {
-        updateProducer(producer.id, { status });
-      }
 
       return {
         taskId,
@@ -127,7 +121,7 @@ export class ValidationService {
         details: payloadOut,
       };
     } catch (error) {
-      updateValidationTask(taskId, {
+      await updateValidationTask(taskId, {
         estado: "FAIL",
         payloadOut: { error: (error as Error).message },
       });
