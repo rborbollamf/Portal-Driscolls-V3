@@ -4,10 +4,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev -p 5000",
+    "worker:monitoring": "tsx scripts/monitoring-worker.ts",
     "build": "next build",
     "start": "next start -p 5000",
     "lint": "next lint",
     "test:auth": "tsx --test tests/auth/*.test.ts",
+    "test:monitoring": "tsx --test tests/monitoring/*.test.ts",
     "seed": "tsx scripts/seed.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:import": "tsx scripts/import-json.ts",

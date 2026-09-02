@@ -1,11 +1,14 @@
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import type {
   Alert,
+  AlertHistoryEntry,
   AuditLog,
   Crop,
   Database,
   FinancialSnapshot,
   LegalEntity,
+  MonitoringJob,
+  IntegrationEvent,
   Producer,
   Ranch,
   Rule,
@@ -14,6 +17,10 @@ import type {
 } from "@/types";
 
 type Queryable = Pick<Pool, "query"> | PoolClient;
+
+function isTransactionClient(db: Queryable): db is PoolClient {
+  return "release" in db && typeof db.release === "function";
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -73,7 +80,7 @@ function mapFinancialSnapshot(row: QueryResultRow): FinancialSnapshot {
     id: row.id, legalEntityId: row.legal_entity_id, periodo: row.periodo,
     liquidez: Number(row.liquidez), endeudamientoPct: Number(row.endeudamiento_pct),
     ingresosAnuales: Number(row.ingresos_anuales), egresosAnuales: Number(row.egresos_anuales),
-    notas: row.notas ?? undefined,
+    notas: row.notas ?? undefined, sourceJobId: row.source_job_id ?? undefined,
   };
 }
 
@@ -91,6 +98,34 @@ function mapAlert(row: QueryResultRow): Alert {
     severity: row.severity, message: row.message, createdAt: toIso(row.created_at),
     resolvedAt: row.resolved_at ? toIso(row.resolved_at) : undefined,
   } as Alert;
+}
+
+function mapAlertHistory(row: QueryResultRow): AlertHistoryEntry {
+  return {
+    id: row.id, alertId: row.alert_id, eventType: row.event_type,
+    at: toIso(row.at), details: json(row.details),
+  } as AlertHistoryEntry;
+}
+
+function mapMonitoringJob(row: QueryResultRow): MonitoringJob {
+  return {
+    id: row.id, validationTaskId: row.validation_task_id, legalEntityId: row.legal_entity_id,
+    tipo: row.tipo, modo: row.modo, status: row.status, idempotencyKey: row.idempotency_key,
+    attempts: Number(row.attempts), maxAttempts: Number(row.max_attempts),
+    claimToken: Number(row.claim_token),
+    availableAt: toIso(row.available_at), lockedAt: row.locked_at ? toIso(row.locked_at) : undefined,
+    lockedBy: row.locked_by ?? undefined, lastError: row.last_error ?? undefined,
+    createdAt: toIso(row.created_at), completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
+  } as MonitoringJob;
+}
+
+function mapIntegrationEvent(row: QueryResultRow): IntegrationEvent {
+  return {
+    id: row.id, jobId: row.job_id ?? undefined, validationTaskId: row.validation_task_id ?? undefined,
+    provider: row.provider, operation: row.operation, status: row.status,
+    correlationId: row.correlation_id, attempt: Number(row.attempt), message: row.message ?? undefined,
+    metadata: json(row.metadata), occurredAt: toIso(row.occurred_at),
+  } as IntegrationEvent;
 }
 
 function mapRule(row: QueryResultRow): Rule {
@@ -300,10 +335,13 @@ export async function getLatestFinancialSnapshot(legalEntityId: string) {
 
 export async function createFinancialSnapshot(snapshot: FinancialSnapshot, db: Queryable = pool) {
   return one(db, `INSERT INTO financial_snapshots
-    (id, legal_entity_id, periodo, liquidez, endeudamiento_pct, ingresos_anuales, egresos_anuales, notas)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    (id, legal_entity_id, periodo, liquidez, endeudamiento_pct, ingresos_anuales, egresos_anuales, notas, source_job_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ON CONFLICT (source_job_id) WHERE source_job_id IS NOT NULL DO UPDATE
+    SET notas = EXCLUDED.notas
+    RETURNING *`,
     [snapshot.id, snapshot.legalEntityId, snapshot.periodo, snapshot.liquidez, snapshot.endeudamientoPct,
-      snapshot.ingresosAnuales, snapshot.egresosAnuales, snapshot.notas ?? null], mapFinancialSnapshot);
+      snapshot.ingresosAnuales, snapshot.egresosAnuales, snapshot.notas ?? null, snapshot.sourceJobId ?? null], mapFinancialSnapshot);
 }
 
 export async function getValidationTasks(legalEntityId?: string) {
@@ -342,6 +380,243 @@ export async function updateValidationTask(id: string, updates: Partial<Validati
   return one(db, `UPDATE validation_tasks SET ${set} WHERE id = $1 RETURNING *`, [id, ...values], mapValidationTask);
 }
 
+export async function createMonitoringJob(input: {
+  id: string;
+  validationTask: ValidationTask;
+  idempotencyKey: string;
+  maxAttempts?: number;
+}, db: Queryable = pool): Promise<{ job: MonitoringJob; created: boolean }> {
+  const create = async (client: PoolClient) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [input.idempotencyKey]);
+    const existing = await one(
+      client,
+      "SELECT * FROM monitoring_jobs WHERE idempotency_key = $1",
+      [input.idempotencyKey],
+      mapMonitoringJob,
+    );
+    if (existing) return { job: existing, created: false };
+    await createValidationTask(input.validationTask, client);
+    const job = await one(client, `INSERT INTO monitoring_jobs
+      (id, validation_task_id, legal_entity_id, tipo, modo, status, idempotency_key, max_attempts, available_at, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, NOW(), NOW()) RETURNING *`,
+      [input.id, input.validationTask.id, input.validationTask.legalEntityId, input.validationTask.tipo,
+        input.validationTask.modo, input.idempotencyKey, input.maxAttempts ?? 4],
+      mapMonitoringJob,
+    );
+    if (!job) throw new Error("Could not create monitoring job");
+    return { job, created: true };
+  };
+  if (!isTransactionClient(db)) return withTransaction(create);
+  return create(db);
+}
+
+export async function claimMonitoringJobs(workerId: string, limit = 10): Promise<MonitoringJob[]> {
+  return withTransaction(async (client) => {
+    const result = await client.query(`WITH ready AS (
+      SELECT id FROM monitoring_jobs
+      WHERE status IN ('PENDING', 'RETRY') AND available_at <= NOW()
+      ORDER BY available_at ASC
+      FOR UPDATE SKIP LOCKED
+      LIMIT $1
+    )
+    UPDATE monitoring_jobs AS job
+    SET status = 'RUNNING', attempts = job.attempts + 1, claim_token = job.claim_token + 1,
+      locked_at = NOW(), locked_by = $2
+    FROM ready WHERE job.id = ready.id
+    RETURNING job.*`, [limit, workerId]);
+    return result.rows.map(mapMonitoringJob);
+  });
+}
+
+export async function completeMonitoringJob(
+  id: string,
+  workerId: string,
+  claimToken: number,
+  validation: Pick<ValidationTask, "estado" | "payloadOut">,
+  db: Queryable = pool,
+) {
+  const complete = async (client: PoolClient) => {
+    const job = await one(client, `UPDATE monitoring_jobs
+      SET status = 'COMPLETED', completed_at = NOW(), locked_at = NULL, locked_by = NULL, last_error = NULL
+      WHERE id = $1 AND status = 'RUNNING' AND locked_by = $2 AND claim_token = $3 RETURNING *`,
+      [id, workerId, claimToken], mapMonitoringJob);
+    if (!job) return null;
+    await updateValidationTask(job.validationTaskId, validation, client);
+    const entityRisk = await client.query(`SELECT CASE
+      WHEN EXISTS (SELECT 1 FROM alerts WHERE legal_entity_id = $1 AND resolved_at IS NULL AND severity = 'HIGH') THEN 'FAIL'
+      WHEN EXISTS (SELECT 1 FROM alerts WHERE legal_entity_id = $1 AND resolved_at IS NULL AND severity = 'MEDIUM') THEN 'RISK'
+      ELSE 'OK' END AS status`, [job.legalEntityId]);
+    const entityStatus = entityRisk.rows[0].status;
+    await updateLegalEntity(job.legalEntityId, { status: entityStatus }, client);
+    await client.query(`UPDATE producers AS producer SET status = CASE
+      WHEN EXISTS (
+        SELECT 1 FROM alerts
+        INNER JOIN legal_entities ON legal_entities.id = alerts.legal_entity_id
+        WHERE legal_entities.producer_id = producer.id AND alerts.resolved_at IS NULL AND alerts.severity = 'HIGH'
+      ) THEN 'FAIL'
+      WHEN EXISTS (
+        SELECT 1 FROM alerts
+        INNER JOIN legal_entities ON legal_entities.id = alerts.legal_entity_id
+        WHERE legal_entities.producer_id = producer.id AND alerts.resolved_at IS NULL AND alerts.severity = 'MEDIUM'
+      ) THEN 'RISK'
+      ELSE 'OK' END
+      WHERE producer.id = (SELECT producer_id FROM legal_entities WHERE id = $1)`, [job.legalEntityId]);
+    return job;
+  };
+  if (!isTransactionClient(db)) return withTransaction(complete);
+  return complete(db);
+}
+
+export async function retryMonitoringJob(id: string, workerId: string, claimToken: number, error: string, retryAt: Date, db: Queryable = pool) {
+  return one(db, `UPDATE monitoring_jobs
+    SET status = CASE WHEN attempts >= max_attempts THEN 'FAILED' ELSE 'RETRY' END,
+      available_at = CASE WHEN attempts >= max_attempts THEN available_at ELSE $5 END,
+      completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END,
+      locked_at = NULL, locked_by = NULL, last_error = $4
+    WHERE id = $1 AND status = 'RUNNING' AND locked_by = $2 AND claim_token = $3 RETURNING *`,
+    [id, workerId, claimToken, error.slice(0, 1000), retryAt.toISOString()], mapMonitoringJob);
+}
+
+export async function failMonitoringJob(id: string, workerId: string, claimToken: number, error: string, db: Queryable = pool) {
+  return one(db, `UPDATE monitoring_jobs
+    SET status = 'FAILED', completed_at = NOW(), locked_at = NULL, locked_by = NULL, last_error = $4
+    WHERE id = $1 AND status = 'RUNNING' AND locked_by = $2 AND claim_token = $3 RETURNING *`,
+    [id, workerId, claimToken, error.slice(0, 1000)], mapMonitoringJob);
+}
+
+export async function transitionMonitoringJobFailure(
+  id: string,
+  workerId: string,
+  claimToken: number,
+  error: string,
+  retryable: boolean,
+  retryAt: Date,
+  provider: string,
+) {
+  return withTransaction(async (client) => {
+    const job = await one(client, `UPDATE monitoring_jobs
+      SET status = CASE WHEN $4::boolean = FALSE OR attempts >= max_attempts THEN 'FAILED' ELSE 'RETRY' END,
+        available_at = CASE WHEN $4::boolean = FALSE OR attempts >= max_attempts THEN available_at ELSE $6 END,
+        completed_at = CASE WHEN $4::boolean = FALSE OR attempts >= max_attempts THEN NOW() ELSE NULL END,
+        locked_at = NULL, locked_by = NULL, last_error = $5
+      WHERE id = $1 AND status = 'RUNNING' AND locked_by = $2 AND claim_token = $3
+      RETURNING *`,
+      [id, workerId, claimToken, retryable, error.slice(0, 1000), retryAt.toISOString()],
+      mapMonitoringJob);
+    if (!job) return null;
+    const final = job.status === "FAILED";
+    await updateValidationTask(job.validationTaskId, {
+      estado: final ? "FAIL" : "PENDIENTE",
+      payloadOut: { error, retryAt: final ? undefined : job.availableAt, final },
+    }, client);
+    await createIntegrationEvent({
+      id: `integration-${job.id}-${claimToken}`,
+      jobId: job.id, validationTaskId: job.validationTaskId, provider, operation: job.tipo,
+      status: final ? "FAILED" : "RETRYING", correlationId: job.id, attempt: job.attempts,
+      message: error, metadata: {}, occurredAt: new Date().toISOString(),
+    }, client);
+    return job;
+  });
+}
+
+export async function recoverStalledMonitoringJobs() {
+  return withTransaction(async (client) => {
+    const stale = await client.query(`SELECT * FROM monitoring_jobs
+      WHERE status = 'RUNNING' AND locked_at < NOW() - INTERVAL '10 minutes'
+      FOR UPDATE SKIP LOCKED`);
+    const recovered: MonitoringJob[] = [];
+    for (const row of stale.rows) {
+      const job = mapMonitoringJob(row);
+      const updated = await one(client, `UPDATE monitoring_jobs
+        SET status = CASE WHEN attempts >= max_attempts THEN 'FAILED' ELSE 'RETRY' END,
+          available_at = NOW(), completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END,
+          locked_at = NULL, locked_by = NULL, last_error = 'Worker lease expired'
+        WHERE id = $1 AND status = 'RUNNING' AND claim_token = $2
+        RETURNING *`, [job.id, job.claimToken], mapMonitoringJob);
+      if (!updated) continue;
+      const final = updated.status === "FAILED";
+      await updateValidationTask(updated.validationTaskId, {
+        estado: final ? "FAIL" : "PENDIENTE",
+        payloadOut: { error: "Worker lease expired", retryAt: final ? undefined : updated.availableAt, final },
+      }, client);
+      await createIntegrationEvent({
+        id: `integration-recovery-${updated.id}-${updated.claimToken}`,
+        jobId: updated.id, validationTaskId: updated.validationTaskId,
+        provider: "WORKER", operation: updated.tipo,
+        status: final ? "FAILED" : "RETRYING", correlationId: updated.id,
+        attempt: updated.attempts, message: "Worker lease expired", metadata: {},
+        occurredAt: new Date().toISOString(),
+      }, client);
+      recovered.push(updated);
+    }
+    return recovered;
+  });
+}
+
+export async function renewMonitoringJobLease(id: string, workerId: string, claimToken: number) {
+  const result = await pool.query(`UPDATE monitoring_jobs SET locked_at = NOW()
+    WHERE id = $1 AND status = 'RUNNING' AND locked_by = $2 AND claim_token = $3`,
+    [id, workerId, claimToken]);
+  return result.rowCount === 1;
+}
+
+export async function getMonitoringJobs(filters: { status?: string; limit?: number } = {}) {
+  const values: unknown[] = [];
+  const conditions: string[] = [];
+  if (filters.status) { values.push(filters.status); conditions.push(`status = $${values.length}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  if (filters.limit) values.push(filters.limit);
+  const limit = filters.limit ? ` LIMIT $${values.length}` : "";
+  const result = await pool.query(`SELECT * FROM monitoring_jobs ${where} ORDER BY created_at DESC${limit}`, values);
+  return result.rows.map(mapMonitoringJob);
+}
+
+export async function getMonitoringJobSummary() {
+  const result = await pool.query(`SELECT status, COUNT(*)::int AS count
+    FROM monitoring_jobs GROUP BY status`);
+  return Object.fromEntries(result.rows.map((row) => [row.status, Number(row.count)])) as Record<string, number>;
+}
+
+export async function acquireProviderRateLimit(provider: string, requestsPerMinute: number) {
+  const intervalMs = Math.ceil(60_000 / requestsPerMinute);
+  return withTransaction(async (client) => {
+    await client.query(`INSERT INTO provider_rate_limits (provider, next_available_at)
+      VALUES ($1, NOW()) ON CONFLICT (provider) DO NOTHING`, [provider]);
+    const current = await client.query(
+      "SELECT next_available_at FROM provider_rate_limits WHERE provider = $1 FOR UPDATE",
+      [provider],
+    );
+    const nextAvailableAt = new Date(current.rows[0].next_available_at).getTime();
+    const now = Date.now();
+    const scheduledAt = Math.max(now, nextAvailableAt);
+    await client.query(
+      "UPDATE provider_rate_limits SET next_available_at = $2 WHERE provider = $1",
+      [provider, new Date(scheduledAt + intervalMs).toISOString()],
+    );
+    return Math.max(0, scheduledAt - now);
+  });
+}
+
+export async function createIntegrationEvent(event: IntegrationEvent, db: Queryable = pool) {
+  return one(db, `INSERT INTO integration_events
+    (id, job_id, validation_task_id, provider, operation, status, correlation_id, attempt, message, metadata, occurred_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11) RETURNING *`,
+    [event.id, event.jobId ?? null, event.validationTaskId ?? null, event.provider, event.operation,
+      event.status, event.correlationId, event.attempt, event.message ?? null,
+      JSON.stringify(event.metadata), event.occurredAt], mapIntegrationEvent);
+}
+
+export async function getIntegrationEvents(filters: { status?: string; limit?: number } = {}) {
+  const values: unknown[] = [];
+  const conditions: string[] = [];
+  if (filters.status) { values.push(filters.status); conditions.push(`status = $${values.length}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  if (filters.limit) values.push(filters.limit);
+  const limit = filters.limit ? ` LIMIT $${values.length}` : "";
+  const result = await pool.query(`SELECT * FROM integration_events ${where} ORDER BY occurred_at DESC${limit}`, values);
+  return result.rows.map(mapIntegrationEvent);
+}
+
 export async function getAlerts(filters?: {
   legalEntityId?: string;
   producerId?: string;
@@ -372,10 +647,72 @@ export async function getAlerts(filters?: {
   return { alerts: result.rows.map(mapAlert), total: count.rows[0].total as number };
 }
 
+export async function getAlert(id: string) {
+  return one(pool, "SELECT * FROM alerts WHERE id = $1", [id], mapAlert);
+}
+
+export async function producerCanAccessAlert(alertId: string, producerId: string) {
+  const result = await pool.query(`SELECT 1 FROM alerts
+    INNER JOIN legal_entities ON legal_entities.id = alerts.legal_entity_id
+    WHERE alerts.id = $1 AND legal_entities.producer_id = $2`, [alertId, producerId]);
+  return result.rowCount === 1;
+}
+
 export async function createAlert(alert: Alert, db: Queryable = pool) {
   return one(db, `INSERT INTO alerts (id, legal_entity_id, rule_code, severity, message, created_at, resolved_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [alert.id, alert.legalEntityId, alert.ruleCode, alert.severity, alert.message, alert.createdAt, alert.resolvedAt ?? null], mapAlert);
+}
+
+export async function createAlertHistory(entry: AlertHistoryEntry, db: Queryable = pool) {
+  return one(db, `INSERT INTO alert_history (id, alert_id, event_type, at, details)
+    VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *`,
+    [entry.id, entry.alertId, entry.eventType, entry.at, JSON.stringify(entry.details)], mapAlertHistory);
+}
+
+export async function getAlertHistory(alertId: string) {
+  const result = await pool.query("SELECT * FROM alert_history WHERE alert_id = $1 ORDER BY at DESC", [alertId]);
+  return result.rows.map(mapAlertHistory);
+}
+
+export async function upsertRuleAlert(alert: Alert, db: Queryable = pool) {
+  await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${alert.legalEntityId}:${alert.ruleCode}`]);
+  const active = await one(db, `SELECT * FROM alerts
+    WHERE legal_entity_id = $1 AND rule_code = $2 AND resolved_at IS NULL
+    FOR UPDATE`, [alert.legalEntityId, alert.ruleCode], mapAlert);
+  if (!active) {
+    const created = await createAlert(alert, db);
+    if (!created) throw new Error("Could not create alert");
+    await createAlertHistory({
+      id: `history-${alert.id}`, alertId: alert.id, eventType: "OPENED", at: alert.createdAt,
+      details: { severity: alert.severity, message: alert.message },
+    }, db);
+    return { alert: created, created: true };
+  }
+  if (active.severity !== alert.severity || active.message !== alert.message) {
+    const updated = await updateAlert(active.id, { severity: alert.severity, message: alert.message }, db);
+    await createAlertHistory({
+      id: `history-${alert.id}`, alertId: active.id, eventType: "UPDATED", at: alert.createdAt,
+      details: { severity: alert.severity, message: alert.message },
+    }, db);
+    return { alert: updated!, created: false };
+  }
+  return { alert: active, created: false };
+}
+
+export async function autoResolveRuleAlerts(legalEntityId: string, ruleCodes: string[], db: Queryable = pool) {
+  if (!ruleCodes.length) return [];
+  const result = await db.query(`UPDATE alerts SET resolved_at = NOW()
+    WHERE legal_entity_id = $1 AND resolved_at IS NULL AND rule_code = ANY($2::text[])
+    RETURNING *`, [legalEntityId, ruleCodes]);
+  const resolved = result.rows.map(mapAlert);
+  for (const alert of resolved) {
+    await createAlertHistory({
+      id: `history-auto-${alert.id}-${Date.now()}`, alertId: alert.id, eventType: "AUTO_RESOLVED",
+      at: alert.resolvedAt!, details: { reason: "Rule condition is no longer present" },
+    }, db);
+  }
+  return resolved;
 }
 
 export async function updateAlert(id: string, updates: Partial<Alert>, db: Queryable = pool) {
@@ -391,6 +728,10 @@ export async function resolveAlertWithAudit(alertId: string, audit: AuditLog) {
   return withTransaction(async (client) => {
     const alert = await updateAlert(alertId, { resolvedAt: new Date().toISOString() }, client);
     if (!alert) return null;
+    await createAlertHistory({
+      id: `history-resolved-${alert.id}-${Date.now()}`, alertId: alert.id, eventType: "RESOLVED",
+      at: alert.resolvedAt!, details: { actorUserId: audit.actorUserId },
+    }, client);
     await createAuditLog(audit, client);
     return alert;
   });
@@ -465,11 +806,14 @@ export async function exportDatabaseSnapshot(): Promise<Database> {
     const financialSnapshots = (await client.query("SELECT * FROM financial_snapshots ORDER BY id")).rows.map(mapFinancialSnapshot);
     const validationTasks = (await client.query("SELECT * FROM validation_tasks ORDER BY id")).rows.map(mapValidationTask);
     const alerts = (await client.query("SELECT * FROM alerts ORDER BY id")).rows.map(mapAlert);
+    const alertHistory = (await client.query("SELECT * FROM alert_history ORDER BY id")).rows.map(mapAlertHistory);
+    const monitoringJobs = (await client.query("SELECT * FROM monitoring_jobs ORDER BY id")).rows.map(mapMonitoringJob);
+    const integrationEvents = (await client.query("SELECT * FROM integration_events ORDER BY id")).rows.map(mapIntegrationEvent);
     const rules = (await client.query("SELECT * FROM rules ORDER BY id")).rows.map(mapRule);
     const auditLogs = (await client.query("SELECT * FROM audit_logs ORDER BY id")).rows.map(mapAuditLog);
     return {
       users, producers, legalEntities, ranches, crops, financialSnapshots,
-      validationTasks, alerts, rules, auditLogs,
+      validationTasks, alerts, alertHistory, monitoringJobs, integrationEvents, rules, auditLogs,
     };
   });
 }
@@ -484,6 +828,9 @@ export async function getDatabaseCounts() {
     UNION ALL SELECT 'financialSnapshots', COUNT(*)::int FROM financial_snapshots
     UNION ALL SELECT 'validationTasks', COUNT(*)::int FROM validation_tasks
     UNION ALL SELECT 'alerts', COUNT(*)::int FROM alerts
+    UNION ALL SELECT 'alertHistory', COUNT(*)::int FROM alert_history
+    UNION ALL SELECT 'monitoringJobs', COUNT(*)::int FROM monitoring_jobs
+    UNION ALL SELECT 'integrationEvents', COUNT(*)::int FROM integration_events
     UNION ALL SELECT 'rules', COUNT(*)::int FROM rules
     UNION ALL SELECT 'auditLogs', COUNT(*)::int FROM audit_logs
   `);
@@ -502,6 +849,9 @@ export async function restoreDatabaseSnapshot(snapshot: Database, options: { rep
         (SELECT COUNT(*) FROM financial_snapshots) +
         (SELECT COUNT(*) FROM validation_tasks) +
         (SELECT COUNT(*) FROM alerts) +
+         (SELECT COUNT(*) FROM alert_history) +
+         (SELECT COUNT(*) FROM monitoring_jobs) +
+         (SELECT COUNT(*) FROM integration_events) +
         (SELECT COUNT(*) FROM rules) +
         (SELECT COUNT(*) FROM audit_logs)
       )::int AS total
@@ -513,9 +863,12 @@ export async function restoreDatabaseSnapshot(snapshot: Database, options: { rep
     if (options.replace) {
       await client.query(`
         DELETE FROM audit_logs;
+        DELETE FROM integration_events;
+        DELETE FROM financial_snapshots;
+        DELETE FROM alert_history;
+        DELETE FROM monitoring_jobs;
         DELETE FROM alerts;
         DELETE FROM validation_tasks;
-        DELETE FROM financial_snapshots;
         DELETE FROM crops;
         DELETE FROM ranches;
         DELETE FROM legal_entities;
@@ -530,10 +883,20 @@ export async function restoreDatabaseSnapshot(snapshot: Database, options: { rep
     for (const entity of snapshot.legalEntities) await createLegalEntity(entity, client);
     for (const ranch of snapshot.ranches) await createRanch(ranch, client);
     for (const crop of snapshot.crops) await createCrop(crop, client);
-    for (const financialSnapshot of snapshot.financialSnapshots) await createFinancialSnapshot(financialSnapshot, client);
     for (const task of snapshot.validationTasks) await createValidationTask(task, client);
     for (const rule of snapshot.rules) await createRule(rule, client);
     for (const alert of snapshot.alerts) await createAlert(alert, client);
+    for (const entry of snapshot.alertHistory) await createAlertHistory(entry, client);
+    for (const job of snapshot.monitoringJobs) {
+      await one(client, `INSERT INTO monitoring_jobs
+        (id, validation_task_id, legal_entity_id, tipo, modo, status, idempotency_key, attempts, max_attempts, claim_token, available_at, locked_at, locked_by, last_error, created_at, completed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+        [job.id, job.validationTaskId, job.legalEntityId, job.tipo, job.modo, job.status, job.idempotencyKey,
+          job.attempts, job.maxAttempts, job.claimToken, job.availableAt, job.lockedAt ?? null, job.lockedBy ?? null,
+          job.lastError ?? null, job.createdAt, job.completedAt ?? null], mapMonitoringJob);
+    }
+    for (const financialSnapshot of snapshot.financialSnapshots) await createFinancialSnapshot(financialSnapshot, client);
+    for (const event of snapshot.integrationEvents) await createIntegrationEvent(event, client);
     for (const log of snapshot.auditLogs) await createAuditLog(log, client);
   });
 }

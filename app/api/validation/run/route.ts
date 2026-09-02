@@ -19,12 +19,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const idempotencyKey = request.headers.get("Idempotency-Key");
+    if (!idempotencyKey) {
+      return NextResponse.json({ error: "Idempotency-Key header is required" }, { status: 400 });
+    }
     let result;
 
     if (tipo) {
-      result = await ValidationService.runDiagnostic(legalEntityId, tipo, modo);
+      result = await ValidationService.enqueueDiagnostic(legalEntityId, tipo, modo, `manual:${auth.userId}:${idempotencyKey}`);
     } else {
-      result = await ValidationService.runCompleteDiagnostic(legalEntityId, modo);
+      result = await ValidationService.enqueueCompleteDiagnostic(legalEntityId, modo, `manual:${auth.userId}:${idempotencyKey}`);
     }
 
     await createAuditLog({
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest) {
       metadata: { tipo, modo },
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { status: 202 });
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },

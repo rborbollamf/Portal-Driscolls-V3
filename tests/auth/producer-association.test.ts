@@ -24,6 +24,9 @@ function snapshot(): Database {
     financialSnapshots: [],
     validationTasks: [],
     alerts: [],
+    alertHistory: [],
+    monitoringJobs: [],
+    integrationEvents: [],
     rules: [],
     auditLogs: [],
   };

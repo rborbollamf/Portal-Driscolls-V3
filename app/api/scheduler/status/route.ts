@@ -7,7 +7,7 @@ export async function GET() {
   if (!auth.authorized) return auth.response;
 
   try {
-    const status = scheduler.getStatus();
+      const status = await scheduler.getStatus();
     return NextResponse.json(status);
   } catch (error) {
     return NextResponse.json(

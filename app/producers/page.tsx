@@ -36,7 +36,7 @@ export default function ProducersPage() {
     for (const legalEntity of producerData.legalEntities) {
       await fetch("/api/validation/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({
           legalEntityId: legalEntity.id,
           modo: "ONE_SHOT",

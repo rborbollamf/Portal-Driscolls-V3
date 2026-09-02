@@ -1,2 +1,3 @@
 - [PostgreSQL recovery guarantees](postgres-recovery-guarantees.md) — backups must be transactionally consistent, and destructive recovery paths require explicit non-production safeguards.
 - [Post-merge database initialization](post-merge-database-initialization.md) — dependency sync, migrations and development-only data import must be safe to repeat after a merge.
+- [Reliable monitoring concurrency](reliable-monitoring-concurrency.md) — validation jobs must retain their idempotency key and fenced lease through every persisted effect.

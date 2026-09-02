@@ -1,95 +1,50 @@
-import cron from "node-cron";
-import { getLegalEntities, getProducer, createAuditLog } from "@/lib/db";
+import { createAuditLog, getIntegrationEvents, getLegalEntities, getMonitoringJobs, getMonitoringJobSummary, getProducer } from "@/lib/db";
 import { ValidationService } from "./validation";
 import { generateId } from "@/lib/utils";
 
 export interface SchedulerConfig {
   cohort: string | string[];
-  enabled: boolean;
-  cronExpression: string;
 }
 
 class Scheduler {
-  private jobs: Map<string, cron.ScheduledTask> = new Map();
-
-  start(config: SchedulerConfig) {
-    if (this.jobs.has("recurrent-monitoring")) {
-      this.jobs.get("recurrent-monitoring")?.stop();
+  async enqueueMonitoring(cohort: string | string[], source: string, idempotencyKey: string) {
+    let legalEntityIds: string[] = [];
+    if (Array.isArray(cohort)) {
+      legalEntityIds = cohort;
+    } else if (cohort.startsWith("zona:")) {
+      const zona = cohort.substring(5);
+      const entities = await getLegalEntities();
+      const paired = await Promise.all(entities.map(async (entity) => ({ entity, producer: await getProducer(entity.producerId) })));
+      legalEntityIds = paired.filter(({ producer }) => producer?.zona === zona).map(({ entity }) => entity.id);
+    } else {
+      legalEntityIds = (await getLegalEntities()).map((entity) => entity.id);
     }
 
-    const task = cron.schedule(
-      config.cronExpression,
-      async () => {
-        console.log("🔄 Running recurrent monitoring...");
-        await this.runMonitoring(config.cohort);
-      },
-      {
-        scheduled: config.enabled,
-      }
-    );
-
-    this.jobs.set("recurrent-monitoring", task);
-    
-    console.log(`✅ Scheduler started with cron: ${config.cronExpression}`);
+    const batchId = idempotencyKey;
+    const jobs = await Promise.all(legalEntityIds.map(async (legalEntityId) => {
+      const enqueued = await ValidationService.enqueueCompleteDiagnostic(
+        legalEntityId,
+        "RECURRENTE",
+        `${source}:${batchId}:${legalEntityId}`,
+      );
+      await createAuditLog({
+        id: generateId(), actorUserId: "system", action: "monitoring_enqueued",
+        targetType: "LegalEntity", targetId: legalEntityId, at: new Date().toISOString(),
+        metadata: { cohort, batchId, jobs: enqueued.map((item) => item.job.id), created: enqueued.map((item) => item.created) },
+      });
+      return enqueued.map((item) => item.job);
+    }));
+    return { batchId, legalEntityCount: legalEntityIds.length, jobs: jobs.flat() };
   }
 
-  stop() {
-    this.jobs.forEach((job) => job.stop());
-    this.jobs.clear();
-    console.log("⏸️  Scheduler stopped");
-  }
-
-  async runMonitoring(cohort: string | string[]) {
-    try {
-      let legalEntityIds: string[] = [];
-
-      if (Array.isArray(cohort)) {
-        legalEntityIds = cohort;
-      } else if (cohort.startsWith("zona:")) {
-        const zona = cohort.substring(5);
-        const allEntities = await getLegalEntities();
-        const scopedEntities = await Promise.all(allEntities.map(async (entity) => ({
-          entity,
-          producer: await getProducer(entity.producerId),
-        })));
-        legalEntityIds = scopedEntities
-          .filter(({ producer }) => producer?.zona === zona)
-          .map(({ entity }) => entity.id);
-      } else {
-        const allEntities = await getLegalEntities();
-        legalEntityIds = allEntities.map((le) => le.id);
-      }
-
-      console.log(`📊 Monitoring ${legalEntityIds.length} legal entities...`);
-
-      for (const legalEntityId of legalEntityIds) {
-        try {
-          await ValidationService.runCompleteDiagnostic(legalEntityId, "RECURRENTE");
-          
-          await createAuditLog({
-            id: generateId(),
-            actorUserId: "system",
-            action: "recurrent_validation",
-            targetType: "LegalEntity",
-            targetId: legalEntityId,
-            at: new Date().toISOString(),
-            metadata: { cohort },
-          });
-        } catch (error) {
-          console.error(`Error validating ${legalEntityId}:`, error);
-        }
-      }
-
-      console.log("✅ Recurrent monitoring completed");
-    } catch (error) {
-      console.error("Error in runMonitoring:", error);
-    }
-  }
-
-  getStatus() {
+  async getStatus() {
+    const jobs = await getMonitoringJobs({ limit: 100 });
+    const integrationEvents = await getIntegrationEvents({ limit: 20 });
+    const counts = await getMonitoringJobSummary();
     return {
-      active: this.jobs.size > 0,
-      jobs: Array.from(this.jobs.keys()),
+      queue: counts,
+      recentJobs: jobs.slice(0, 20),
+      integrationEvents: integrationEvents.filter((event) => event.status !== "SUCCESS"),
     };
   }
 }

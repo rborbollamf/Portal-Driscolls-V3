@@ -14,6 +14,10 @@ export type AlertSeverity = "LOW" | "MEDIUM" | "HIGH";
 
 export type RuleEvaluatorType = "THRESHOLD" | "BOOLEAN" | "CUSTOM";
 
+export type MonitoringJobStatus = "PENDING" | "RUNNING" | "RETRY" | "COMPLETED" | "FAILED";
+
+export type IntegrationEventStatus = "SUCCESS" | "RETRYING" | "FAILED";
+
 export interface User {
   id: string;
   name: string;
@@ -88,6 +92,7 @@ export interface FinancialSnapshot {
   ingresosAnuales: number;
   egresosAnuales: number;
   notas?: string;
+  sourceJobId?: string;
 }
 
 export interface ValidationTask {
@@ -109,6 +114,47 @@ export interface Alert {
   message: string;
   createdAt: string;
   resolvedAt?: string;
+}
+
+export interface AlertHistoryEntry {
+  id: string;
+  alertId: string;
+  eventType: "OPENED" | "UPDATED" | "RESOLVED" | "AUTO_RESOLVED";
+  at: string;
+  details: Record<string, unknown>;
+}
+
+export interface MonitoringJob {
+  id: string;
+  validationTaskId: string;
+  legalEntityId: string;
+  tipo: ValidationTaskType;
+  modo: ValidationTaskMode;
+  status: MonitoringJobStatus;
+  idempotencyKey: string;
+  attempts: number;
+  maxAttempts: number;
+  claimToken: number;
+  availableAt: string;
+  lockedAt?: string;
+  lockedBy?: string;
+  lastError?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface IntegrationEvent {
+  id: string;
+  jobId?: string;
+  validationTaskId?: string;
+  provider: string;
+  operation: string;
+  status: IntegrationEventStatus;
+  correlationId: string;
+  attempt: number;
+  message?: string;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
 }
 
 export interface Rule {
@@ -141,6 +187,9 @@ export interface Database {
   financialSnapshots: FinancialSnapshot[];
   validationTasks: ValidationTask[];
   alerts: Alert[];
+  alertHistory: AlertHistoryEntry[];
+  monitoringJobs: MonitoringJob[];
+  integrationEvents: IntegrationEvent[];
   rules: Rule[];
   auditLogs: AuditLog[];
 }

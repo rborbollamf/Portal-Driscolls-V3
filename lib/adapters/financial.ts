@@ -1,30 +1,32 @@
-import { hashRFC } from "@/lib/utils";
 import type { LegalEntity } from "@/types";
+import { z } from "zod";
+import { requestAuthorizedProvider } from "./http";
 
 export interface FinancialSnapshotResponse {
   liquidez: number;
   endeudamientoPct: number;
   ingresosAnuales: number;
   egresosAnuales: number;
+  observedAt?: string;
+  reference?: string;
 }
 
 export class FinancialAdapter {
-  static async getSnapshot(legalEntity: LegalEntity): Promise<FinancialSnapshotResponse> {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    const hash = hashRFC(legalEntity.rfc);
-    const seed = hash / 1000000;
-
-    const liquidez = 0.5 + (seed % 2.5);
-    const endeudamientoPct = 20 + (hash % 30);
-    const ingresosAnuales = 5000000 + (hash % 20000000);
-    const egresosAnuales = ingresosAnuales * 0.75;
-
-    return {
-      liquidez,
-      endeudamientoPct,
-      ingresosAnuales,
-      egresosAnuales,
-    };
+  static async getSnapshot(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>): Promise<FinancialSnapshotResponse> {
+    return requestAuthorizedProvider(
+      "FINANCIAL",
+      "financial-snapshot",
+      { rfc: legalEntity.rfc, legalEntityId: legalEntity.id },
+      z.object({
+        liquidez: z.number().finite().nonnegative(),
+        endeudamientoPct: z.number().finite().nonnegative(),
+        ingresosAnuales: z.number().finite().nonnegative(),
+        egresosAnuales: z.number().finite().nonnegative(),
+        observedAt: z.string().datetime().optional().default(() => new Date().toISOString()),
+        reference: z.string().max(200).optional(),
+      }),
+      correlationId,
+      beforeRequest,
+    );
   }
 }

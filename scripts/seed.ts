@@ -7,7 +7,8 @@ import type { Database, Producer } from "../types";
 function emptySnapshot(): Database {
   return {
     users: [], producers: [], legalEntities: [], ranches: [], crops: [],
-    financialSnapshots: [], validationTasks: [], alerts: [], rules: [], auditLogs: [],
+    financialSnapshots: [], validationTasks: [], alerts: [], alertHistory: [], monitoringJobs: [],
+    integrationEvents: [], rules: [], auditLogs: [],
   };
 }
 

@@ -2,7 +2,8 @@ import type { Database } from "@/types";
 
 const collections: (keyof Database)[] = [
   "users", "producers", "legalEntities", "ranches", "crops",
-  "financialSnapshots", "validationTasks", "alerts", "rules", "auditLogs",
+  "financialSnapshots", "validationTasks", "alerts", "alertHistory", "monitoringJobs",
+  "integrationEvents", "rules", "auditLogs",
 ];
 
 const legacyDemoProducerEmail = "producer@demo.local";
@@ -27,6 +28,9 @@ export function normalizeLegacyProducerAssociations(snapshot: Database): Databas
 
   return {
     ...snapshot,
+    alertHistory: snapshot.alertHistory ?? [],
+    monitoringJobs: snapshot.monitoringJobs ?? [],
+    integrationEvents: snapshot.integrationEvents ?? [],
     users: snapshot.users.map((user) => (
       user.role === "PRODUCER" && !user.producerId
         ? { ...user, producerId: producerIdFor(user.email) }
@@ -50,6 +54,11 @@ function ids(items: Array<{ id: string }>, name: string) {
 export function validateDatabaseSnapshot(input: unknown): asserts input is Database {
   if (!input || typeof input !== "object") throw new Error("Snapshot must be an object.");
   const snapshot = input as Partial<Database>;
+  // Monitoring records were introduced after the first backup format. Empty
+  // collections preserve import compatibility while all new backups include them.
+  snapshot.alertHistory ??= [];
+  snapshot.monitoringJobs ??= [];
+  snapshot.integrationEvents ??= [];
   for (const collection of collections) {
     if (!Array.isArray(snapshot[collection])) throw new Error(`Snapshot is missing ${collection}.`);
   }
@@ -62,6 +71,9 @@ export function validateDatabaseSnapshot(input: unknown): asserts input is Datab
   ids(snapshot.financialSnapshots!, "financialSnapshots");
   ids(snapshot.validationTasks!, "validationTasks");
   ids(snapshot.alerts!, "alerts");
+  ids(snapshot.alertHistory!, "alertHistory");
+  ids(snapshot.monitoringJobs!, "monitoringJobs");
+  ids(snapshot.integrationEvents!, "integrationEvents");
   ids(snapshot.rules!, "rules");
   ids(snapshot.auditLogs!, "auditLogs");
 
@@ -85,6 +97,16 @@ export function validateDatabaseSnapshot(input: unknown): asserts input is Datab
   for (const record of [...snapshot.financialSnapshots!, ...snapshot.validationTasks!, ...snapshot.alerts!]) {
     if (!entityIds.has(record.legalEntityId)) {
       throw new Error(`Record ${record.id} references an unknown legal entity.`);
+    }
+  }
+  const taskIds = ids(snapshot.validationTasks!, "validationTasks");
+  const alertIds = ids(snapshot.alerts!, "alerts");
+  for (const entry of snapshot.alertHistory!) {
+    if (!alertIds.has(entry.alertId)) throw new Error(`Alert history ${entry.id} references an unknown alert.`);
+  }
+  for (const job of snapshot.monitoringJobs!) {
+    if (!taskIds.has(job.validationTaskId) || !entityIds.has(job.legalEntityId)) {
+      throw new Error(`Monitoring job ${job.id} references an unknown task or legal entity.`);
     }
   }
 }
