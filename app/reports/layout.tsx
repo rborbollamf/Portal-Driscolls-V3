@@ -1,7 +1,7 @@
 import { NavBar } from "@/components/nav-bar";
 import { requirePageUser } from "@/lib/auth/page-access";
 
-export default async function DashboardLayout({
+export default async function ReportsLayout({
   children,
 }: {
   children: React.ReactNode;

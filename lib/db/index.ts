@@ -201,9 +201,6 @@ export async function getUserByEmail(email: string) {
 }
 
 export async function createUser(user: User, db: Queryable = pool) {
-  if (user.role === "PRODUCER" && !user.producerId) {
-    throw new Error("Producer users must be associated with a producer.");
-  }
   return one(db, `INSERT INTO app_users (id, name, email, role, producer_id, hash, is_active, created_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [user.id, user.name, user.email, user.role, user.producerId ?? null, user.hash, user.isActive, user.createdAt], mapUser);
@@ -217,6 +214,30 @@ export async function updateUser(id: string, updates: Partial<User>) {
   if (!fields.length) return getUser(id);
   const set = fields.map(([column], index) => `${column} = $${index + 2}`).join(", ");
   return one(pool, `UPDATE app_users SET ${set} WHERE id = $1 RETURNING *`, [id, ...fields.map(([, value]) => value)], mapUser);
+}
+
+export async function setUserProducerAssociation(userId: string, producerId: string) {
+  return withTransaction(async (client) => {
+    const user = await one(client, "SELECT * FROM app_users WHERE id = $1 FOR UPDATE", [userId], mapUser);
+    if (!user) return { kind: "USER_NOT_FOUND" as const };
+    if (user.role !== "PRODUCER") return { kind: "NOT_PRODUCER_ACCOUNT" as const };
+
+    const producer = await one(
+      client,
+      "SELECT id FROM producers WHERE id = $1",
+      [producerId],
+      (row) => String(row.id),
+    );
+    if (!producer) return { kind: "PRODUCER_NOT_FOUND" as const };
+
+    const updatedUser = await one(
+      client,
+      "UPDATE app_users SET producer_id = $2 WHERE id = $1 RETURNING *",
+      [userId, producerId],
+      mapUser,
+    );
+    return { kind: "UPDATED" as const, user: updatedUser! };
+  });
 }
 
 export async function getProducers(filters?: { producerId?: string; zona?: string; status?: string; limit?: number; offset?: number }) {

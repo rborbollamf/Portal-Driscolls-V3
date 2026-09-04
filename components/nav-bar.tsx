@@ -84,6 +84,17 @@ export function NavBar({ userRole }: { userRole: string }) {
                   </Link>
 
                   <Link
+                    href="/admin/producer-accounts"
+                    className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                      isActive("/admin/producer-accounts")
+                        ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                        : "hover:bg-driscoll-darkgreen/20"
+                    }`}
+                  >
+                    Cuentas
+                  </Link>
+
+                  <Link
                     href="/admin/scheduler"
                     className={`px-4 py-2 rounded-md font-medium transition-colors ${
                       isActive("/admin/scheduler")

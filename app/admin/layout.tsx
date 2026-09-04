@@ -9,14 +9,15 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession(authOptions);
+  const user = session?.user as { role?: string } | undefined;
 
-  if (!session || (session.user as any).role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN") {
     redirect("/dashboard");
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar userRole={(session.user as any).role} />
+      <NavBar userRole={user.role} />
       <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
     </div>
   );

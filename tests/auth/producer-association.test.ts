@@ -32,14 +32,12 @@ function snapshot(): Database {
   };
 }
 
-test("a backup requires every producer account to retain its producer association", () => {
-  const invalid = snapshot();
-  delete invalid.users[0].producerId;
+test("a backup permits a producer account to remain pending association", () => {
+  const pending = snapshot();
+  delete pending.users[0].producerId;
 
-  assert.throws(
-    () => validateDatabaseSnapshot(invalid),
-    /Producer user user-a is not associated with a producer/,
-  );
+  assert.doesNotThrow(() => validateDatabaseSnapshot(pending));
+  assert.equal(canAccessProducerResource("PRODUCER", pending.users[0].producerId, "producer-a"), false);
 });
 
 test("a backup rejects an association to a nonexistent producer", () => {
@@ -91,7 +89,7 @@ test("a migrated legacy producer account can access only its linked producer", (
   assert.equal(canAccessProducerResource("PRODUCER", producerId, "producer-b"), false);
 });
 
-test("a legacy demo account stays unassociated when its RFC is ambiguous", () => {
+test("an ambiguous legacy demo account stays pending and cannot access producer data", () => {
   const legacy = snapshot();
   legacy.users[0].email = "producer@demo.local";
   delete legacy.users[0].producerId;
@@ -104,5 +102,6 @@ test("a legacy demo account stays unassociated when its RFC is ambiguous", () =>
   const migrated = normalizeLegacyProducerAssociations(legacy);
 
   assert.equal(migrated.users[0].producerId, undefined);
-  assert.throws(() => validateDatabaseSnapshot(migrated), /not associated with a producer/);
+  assert.doesNotThrow(() => validateDatabaseSnapshot(migrated));
+  assert.equal(canAccessProducerResource("PRODUCER", migrated.users[0].producerId, "producer-a"), false);
 });

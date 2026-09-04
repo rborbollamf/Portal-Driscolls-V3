@@ -78,9 +78,6 @@ export function validateDatabaseSnapshot(input: unknown): asserts input is Datab
   ids(snapshot.auditLogs!, "auditLogs");
 
   for (const user of snapshot.users!) {
-    if (user.role === "PRODUCER" && !user.producerId) {
-      throw new Error(`Producer user ${user.id} is not associated with a producer.`);
-    }
     if (user.producerId && !producerIds.has(user.producerId)) {
       throw new Error(`User ${user.id} references an unknown producer.`);
     }

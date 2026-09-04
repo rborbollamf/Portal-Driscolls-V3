@@ -49,7 +49,10 @@ export async function requireAuth(allowedRoles?: string[]): Promise<AuthResult> 
     return {
       authorized: false as const,
       response: NextResponse.json(
-        { error: "Producer account is not associated with a producer" },
+        {
+          error: "Tu cuenta de productor no está vinculada a un expediente.",
+          code: "producer_association_required",
+        },
         { status: 403 },
       ),
     };
