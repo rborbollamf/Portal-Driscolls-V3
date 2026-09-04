@@ -2,7 +2,11 @@ import { getServerSession, type Session } from "next-auth";
 import { authOptions } from "./index";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/db";
-import { canAccessProducerResource } from "./producer-access";
+import {
+  canAccessProducerResource,
+  PRODUCER_ASSOCIATION_REQUIRED_CODE,
+  PRODUCER_ASSOCIATION_REQUIRED_MESSAGE,
+} from "./producer-access";
 
 export { canAccessProducerResource } from "./producer-access";
 
@@ -50,8 +54,8 @@ export async function requireAuth(allowedRoles?: string[]): Promise<AuthResult> 
       authorized: false as const,
       response: NextResponse.json(
         {
-          error: "Tu cuenta de productor no está vinculada a un expediente.",
-          code: "producer_association_required",
+          error: PRODUCER_ASSOCIATION_REQUIRED_MESSAGE,
+          code: PRODUCER_ASSOCIATION_REQUIRED_CODE,
         },
         { status: 403 },
       ),

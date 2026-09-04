@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { getProducerAssociationLoginError } from "@/lib/auth/producer-access";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,9 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "producer_association_required") {
-      setError("Tu cuenta de productor aún no está vinculada a un expediente. Solicita a administración que complete el vínculo.");
-    }
+    setError(getProducerAssociationLoginError(params.get("error")));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

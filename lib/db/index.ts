@@ -216,8 +216,12 @@ export async function updateUser(id: string, updates: Partial<User>) {
   return one(pool, `UPDATE app_users SET ${set} WHERE id = $1 RETURNING *`, [id, ...fields.map(([, value]) => value)], mapUser);
 }
 
-export async function setUserProducerAssociation(userId: string, producerId: string) {
-  return withTransaction(async (client) => {
+export async function setUserProducerAssociation(
+  userId: string,
+  producerId: string,
+  db?: Queryable,
+) {
+  const updateAssociation = async (client: Queryable) => {
     const user = await one(client, "SELECT * FROM app_users WHERE id = $1 FOR UPDATE", [userId], mapUser);
     if (!user) return { kind: "USER_NOT_FOUND" as const };
     if (user.role !== "PRODUCER") return { kind: "NOT_PRODUCER_ACCOUNT" as const };
@@ -237,7 +241,9 @@ export async function setUserProducerAssociation(userId: string, producerId: str
       mapUser,
     );
     return { kind: "UPDATED" as const, user: updatedUser! };
-  });
+  };
+
+  return db ? updateAssociation(db) : withTransaction(updateAssociation);
 }
 
 export async function getProducers(filters?: { producerId?: string; zona?: string; status?: string; limit?: number; offset?: number }) {
