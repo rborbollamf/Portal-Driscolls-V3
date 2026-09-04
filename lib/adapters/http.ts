@@ -19,6 +19,11 @@ interface ProviderConfig {
   rateLimitPerMinute: number;
 }
 
+export interface ProviderRequestDependencies {
+  fetch?: typeof fetch;
+  acquireRateLimit?: typeof acquireProviderRateLimit;
+}
+
 function configFor(provider: string): ProviderConfig {
   const prefix = `${provider}_VALIDATION`;
   const url = process.env[`${prefix}_URL`];
@@ -34,11 +39,6 @@ function configFor(provider: string): ProviderConfig {
   return { url, token, rateLimitPerMinute: Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : 30 };
 }
 
-async function respectRateLimit(provider: string, limit: number) {
-  const wait = await acquireProviderRateLimit(provider, limit);
-  if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-}
-
 export async function requestAuthorizedProvider<T>(
   provider: string,
   operation: string,
@@ -46,14 +46,17 @@ export async function requestAuthorizedProvider<T>(
   schema: z.ZodType<T>,
   correlationId: string,
   beforeRequest?: () => Promise<void>,
+  dependencies: ProviderRequestDependencies = {},
 ): Promise<T> {
   const config = configFor(provider);
-  await respectRateLimit(provider, config.rateLimitPerMinute);
+  const acquireRateLimit = dependencies.acquireRateLimit ?? acquireProviderRateLimit;
+  const wait = await acquireRateLimit(provider, config.rateLimitPerMinute);
+  if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   await beforeRequest?.();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(config.url, {
+    const response = await (dependencies.fetch ?? fetch)(config.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,6 +1,6 @@
 import type { LegalEntity } from "@/types";
 import { z } from "zod";
-import { requestAuthorizedProvider } from "./http";
+import { requestAuthorizedProvider, type ProviderRequestDependencies } from "./http";
 
 export interface FinancialSnapshotResponse {
   liquidez: number;
@@ -12,7 +12,7 @@ export interface FinancialSnapshotResponse {
 }
 
 export class FinancialAdapter {
-  static async getSnapshot(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>): Promise<FinancialSnapshotResponse> {
+  static async getSnapshot(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>, dependencies?: ProviderRequestDependencies): Promise<FinancialSnapshotResponse> {
     return requestAuthorizedProvider(
       "FINANCIAL",
       "financial-snapshot",
@@ -27,6 +27,7 @@ export class FinancialAdapter {
       }),
       correlationId,
       beforeRequest,
+      dependencies,
     );
   }
 }

@@ -28,6 +28,10 @@ Los trabajos se reclaman mediante bloqueo de filas en PostgreSQL (`SKIP LOCKED`)
 
 La llave de idempotencia evita que una repetición HTTP encole duplicados. Las alertas activas son únicas por entidad y regla; cambios y resoluciones quedan en `alert_history`. El ritmo máximo de cada proveedor se reserva en PostgreSQL para respetarlo incluso con varios workers.
 
+## Pruebas de contrato y recuperación
+
+`npm run test:monitoring` usa dobles HTTP certificados para SAT, IMSS, financiera y legal. La suite verifica contratos válidos e inválidos, clasificación de 429/5xx, idempotencia de entregas repetidas y cercado de resultados después de vencer un lease. No requiere tokens ni acceso a sandboxes; sí requiere la base PostgreSQL de desarrollo con las migraciones aplicadas.
+
 ## AWS recomendado
 
 En producción, configure **EventBridge Scheduler** para publicar cada ventana de monitoreo en una cola **SQS**. Un worker en ECS/Fargate o Lambda debe convertir el mensaje en llamadas de encolado con una llave determinista por ventana, entidad y tipo. La tabla `monitoring_jobs` sigue siendo el registro de estado, idempotencia y auditoría; SQS aporta entrega desacoplada y escalado del consumidor. Configure una DLQ en SQS y una alarma de CloudWatch para mensajes en DLQ, trabajos `FAILED` y trabajos `RETRY` envejecidos.

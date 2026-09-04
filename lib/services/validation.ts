@@ -21,6 +21,7 @@ import { SatAdapter } from "@/lib/adapters/sat";
 import { ImssAdapter } from "@/lib/adapters/imss";
 import { FinancialAdapter } from "@/lib/adapters/financial";
 import { LegalAdapter } from "@/lib/adapters/legal";
+import type { ProviderRequestDependencies } from "@/lib/adapters/http";
 import { RuleEngine } from "@/lib/rules/engine";
 
 export interface ValidationResult {
@@ -78,6 +79,7 @@ export class ValidationService {
       taskId?: string; jobId?: string; attempt?: number; workerId?: string;
       claimToken?: number; deferFailure?: boolean; deferCompletion?: boolean;
       beforeProviderRequest?: () => Promise<void>;
+      providerRequestDependencies?: ProviderRequestDependencies;
     } = {},
   ): Promise<ValidationResult> {
     const legalEntity = await getLegalEntity(legalEntityId);
@@ -110,17 +112,17 @@ export class ValidationService {
 
       try {
         if (tipo === "SAT") {
-          const satStatus = await SatAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest);
+          const satStatus = await SatAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest, options.providerRequestDependencies);
           payloadOut.satStatus = satStatus;
           context.satStatus = satStatus;
           integrationSuccess = { provider: "SAT", metadata: { reference: satStatus.reference, observedAt: satStatus.observedAt } };
         } else if (tipo === "IMSS") {
-          const imssStatus = await ImssAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest);
+          const imssStatus = await ImssAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest, options.providerRequestDependencies);
           payloadOut.imssStatus = imssStatus;
           context.imssStatus = imssStatus;
           integrationSuccess = { provider: "IMSS", metadata: { reference: imssStatus.reference, observedAt: imssStatus.observedAt } };
         } else if (tipo === "FINANCIERA") {
-          const financialSnapshot = await FinancialAdapter.getSnapshot(legalEntity, correlationId, options.beforeProviderRequest);
+          const financialSnapshot = await FinancialAdapter.getSnapshot(legalEntity, correlationId, options.beforeProviderRequest, options.providerRequestDependencies);
           payloadOut.financialSnapshot = financialSnapshot;
           newSnapshot = {
             id: generateId(), legalEntityId, periodo: new Date().toISOString().substring(0, 7),
@@ -132,7 +134,7 @@ export class ValidationService {
           context.financialSnapshot = newSnapshot;
           integrationSuccess = { provider: "FINANCIAL", metadata: { reference: financialSnapshot.reference, observedAt: financialSnapshot.observedAt } };
         } else {
-          const legalStatus = await LegalAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest);
+          const legalStatus = await LegalAdapter.getStatus(legalEntity, correlationId, options.beforeProviderRequest, options.providerRequestDependencies);
           legalPowersUpdate = legalStatus.poderesVigentesAt;
           context.legalEntity = { ...legalEntity, poderesVigentesAt: legalStatus.poderesVigentesAt };
           payloadOut.legalStatus = legalStatus;

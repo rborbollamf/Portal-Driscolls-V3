@@ -1,6 +1,6 @@
 import type { LegalEntity } from "@/types";
 import { z } from "zod";
-import { requestAuthorizedProvider } from "./http";
+import { requestAuthorizedProvider, type ProviderRequestDependencies } from "./http";
 
 export interface ImssStatusResponse {
   status: "activo" | "suspendido";
@@ -9,7 +9,7 @@ export interface ImssStatusResponse {
 }
 
 export class ImssAdapter {
-  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>): Promise<ImssStatusResponse> {
+  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>, dependencies?: ProviderRequestDependencies): Promise<ImssStatusResponse> {
     return requestAuthorizedProvider(
       "IMSS",
       "situacion-patronal",
@@ -21,6 +21,7 @@ export class ImssAdapter {
       }),
       correlationId,
       beforeRequest,
+      dependencies,
     );
   }
 }

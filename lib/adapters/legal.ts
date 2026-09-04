@@ -1,6 +1,6 @@
 import type { LegalEntity } from "@/types";
 import { z } from "zod";
-import { requestAuthorizedProvider } from "./http";
+import { requestAuthorizedProvider, type ProviderRequestDependencies } from "./http";
 
 export interface LegalStatusResponse {
   poderesVigentesAt: string;
@@ -9,7 +9,7 @@ export interface LegalStatusResponse {
 }
 
 export class LegalAdapter {
-  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>): Promise<LegalStatusResponse> {
+  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>, dependencies?: ProviderRequestDependencies): Promise<LegalStatusResponse> {
     return requestAuthorizedProvider(
       "LEGAL",
       "poderes-notariales",
@@ -21,6 +21,7 @@ export class LegalAdapter {
       }),
       correlationId,
       beforeRequest,
+      dependencies,
     );
   }
 }

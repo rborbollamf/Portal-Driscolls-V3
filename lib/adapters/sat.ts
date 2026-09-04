@@ -1,6 +1,6 @@
 import type { LegalEntity } from "@/types";
 import { z } from "zod";
-import { requestAuthorizedProvider } from "./http";
+import { requestAuthorizedProvider, type ProviderRequestDependencies } from "./http";
 
 export interface SatStatusResponse {
   status: "positiva" | "negativa";
@@ -10,7 +10,7 @@ export interface SatStatusResponse {
 }
 
 export class SatAdapter {
-  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>): Promise<SatStatusResponse> {
+  static async getStatus(legalEntity: LegalEntity, correlationId: string, beforeRequest?: () => Promise<void>, dependencies?: ProviderRequestDependencies): Promise<SatStatusResponse> {
     return requestAuthorizedProvider(
       "SAT",
       "opinion-cumplimiento",
@@ -23,6 +23,7 @@ export class SatAdapter {
       }),
       correlationId,
       beforeRequest,
+      dependencies,
     );
   }
 }
