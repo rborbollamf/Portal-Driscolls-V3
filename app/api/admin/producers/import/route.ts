@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/middleware";
+import { getProducerImportDatabaseIssues, importProducerRows } from "@/lib/db";
+import { parseProducerImport, summarizeValidation } from "@/lib/services/producer-import";
+import { createHash } from "crypto";
+
+export const runtime = "nodejs";
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAuth(["ADMIN"]);
+  if (!auth.authorized) return auth.response;
+  try {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "file is required" }, { status: 400 });
+    if (!/\.(xlsx|csv)$/i.test(file.name)) return NextResponse.json({ error: "Solo se permiten archivos .xlsx o .csv." }, { status: 400 });
+    if (!file.size) return NextResponse.json({ error: "El archivo está vacío." }, { status: 400 });
+    if (file.size > 25 * 1024 * 1024) return NextResponse.json({ error: "File exceeds 25 MB limit" }, { status: 413 });
+    const mode = form.get("mode") === "VALID_ONLY" ? "VALID_ONLY" : "ALL_OR_NOTHING";
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const parsed = await parseProducerImport(buffer, file.name);
+    const database = await getProducerImportDatabaseIssues(parsed.rows);
+    const validation = summarizeValidation(
+      parsed.rows,
+      [...parsed.errors, ...database.errors],
+      [...parsed.warnings, ...database.warnings],
+      parsed.totalRows,
+    );
+    const fileErrors = validation.errors.filter((error) => error.row <= 1);
+    if (fileErrors.length) {
+      return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
+    }
+    if (mode === "ALL_OR_NOTHING" && validation.errors.length) {
+      return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
+    }
+    const invalidRows = new Set(validation.errors.map((error) => error.row));
+    const rows = validation.rows.filter((_, index) => !invalidRows.has(index + 2));
+    const hash = createHash("sha256").update(buffer).digest("hex");
+    const result = await importProducerRows(rows, auth.userId, mode, {
+      batchId: `producer-import-${hash.slice(0, 24)}`,
+      filename: file.name,
+      sha256: hash,
+      received: validation.totalRows,
+      valid: validation.validRows,
+      rejected: validation.invalidRows,
+      imported: rows.length,
+    });
+    return NextResponse.json({
+      ...result,
+      mode,
+      received: validation.totalRows,
+      valid: validation.validRows,
+      rejected: validation.invalidRows,
+      warnings: validation.warnings,
+      rejectedRows: validation.rejectedRows,
+      preview: rows.slice(0, 20),
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Import failed" }, { status: 400 });
+  }
+}

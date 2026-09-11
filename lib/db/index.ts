@@ -15,8 +15,9 @@ import type {
   User,
   ValidationTask,
 } from "@/types";
+import type { ImportError, ProducerImportRow } from "@/lib/services/producer-import";
 
-type Queryable = Pick<Pool, "query"> | PoolClient;
+export type Queryable = Pick<Pool, "query"> | PoolClient;
 
 function isTransactionClient(db: Queryable): db is PoolClient {
   return "release" in db && typeof db.release === "function";
@@ -31,7 +32,21 @@ const pool = new Pool({
 
 const producerFields = new Set([
   "id", "displayName", "rfc", "zona", "contacto", "email", "phone", "status",
+  "cultivo", "distrito", "nombreAreaCultivo", "productor", "idCofibeCg", "numeroProductor",
+  "razonSocial", "representanteLegal", "direccionFiscal", "colonia", "municipio", "estado",
+  "codigoPostal", "nombreContacto", "telefonoContacto", "numeroCelular", "correoElectronico",
+  "correoElectronicoProductor",
 ]);
+const producerTypedColumns: Array<[keyof Producer, string]> = [
+  ["cultivo", "cultivo"], ["distrito", "distrito"], ["nombreAreaCultivo", "nombre_area_cultivo"],
+  ["productor", "productor"], ["idCofibeCg", "id_cofibe_cg"], ["numeroProductor", "numero_productor"],
+  ["razonSocial", "razon_social"], ["representanteLegal", "representante_legal"],
+  ["direccionFiscal", "direccion_fiscal"], ["colonia", "colonia"], ["municipio", "municipio"],
+  ["estado", "estado"], ["codigoPostal", "codigo_postal"], ["nombreContacto", "nombre_contacto"],
+  ["telefonoContacto", "telefono_contacto"], ["numeroCelular", "numero_celular"],
+  ["correoElectronico", "correo_electronico"],
+  ["correoElectronicoProductor", "correo_electronico_productor"],
+];
 
 function toIso(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -54,13 +69,32 @@ function mapProducer(row: QueryResultRow): Producer {
     id: row.id, displayName: row.display_name, rfc: row.rfc, zona: row.zona,
     contacto: row.contacto, email: row.email, phone: row.phone, status: row.status,
     ...json(row.profile),
+    cultivo: row.cultivo ?? undefined,
+    distrito: row.distrito ?? undefined,
+    nombreAreaCultivo: row.nombre_area_cultivo ?? undefined,
+    productor: row.productor ?? undefined,
+    idCofibeCg: row.id_cofibe_cg ?? undefined,
+    numeroProductor: row.numero_productor ?? undefined,
+    razonSocial: row.razon_social ?? undefined,
+    representanteLegal: row.representante_legal ?? undefined,
+    direccionFiscal: row.direccion_fiscal ?? undefined,
+    colonia: row.colonia ?? undefined,
+    municipio: row.municipio ?? undefined,
+    estado: row.estado ?? undefined,
+    codigoPostal: row.codigo_postal ?? undefined,
+    nombreContacto: row.nombre_contacto ?? undefined,
+    telefonoContacto: row.telefono_contacto ?? undefined,
+    numeroCelular: row.numero_celular ?? undefined,
+    correoElectronico: row.correo_electronico ?? undefined,
+    correoElectronicoProductor: row.correo_electronico_productor ?? undefined,
   } as Producer;
 }
 
 function mapLegalEntity(row: QueryResultRow): LegalEntity {
   return {
     id: row.id, producerId: row.producer_id, rfc: row.rfc, tipo: row.tipo,
-    poderesVigentesAt: toIso(row.poderes_vigentes_at), status: row.status,
+    poderesVigentesAt: row.poderes_vigentes_at ? toIso(row.poderes_vigentes_at) : undefined,
+    status: row.status,
   };
 }
 
@@ -267,17 +301,21 @@ export async function getProducer(id: string) {
 }
 
 export async function createProducer(producer: Producer, db: Queryable = pool) {
+  const typedColumns = producerTypedColumns.map(([, column]) => column);
+  const typedValues = producerTypedColumns.map(([key]) => producer[key] ?? null);
+  const placeholders = typedValues.map((_, index) => `$${index + 10}`);
   return one(db, `INSERT INTO producers
-    (id, display_name, rfc, zona, contacto, email, phone, status, profile)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb) RETURNING *`,
+    (id, display_name, rfc, zona, contacto, email, phone, status, profile, ${typedColumns.join(", ")})
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, ${placeholders.join(", ")}) RETURNING *`,
     [producer.id, producer.displayName, producer.rfc, producer.zona, producer.contacto, producer.email,
-      producer.phone, producer.status ?? null, JSON.stringify(producerProfile(producer))], mapProducer);
+      producer.phone, producer.status ?? null, JSON.stringify(producerProfile(producer)), ...typedValues], mapProducer);
 }
 
 export async function updateProducer(id: string, updates: Partial<Producer>, db: Queryable = pool) {
   const fields: [string, unknown][] = [
     ["display_name", updates.displayName], ["rfc", updates.rfc], ["zona", updates.zona],
     ["contacto", updates.contacto], ["email", updates.email], ["phone", updates.phone], ["status", updates.status],
+    ...producerTypedColumns.map(([key, column]) => [column, updates[key]] as [string, unknown]),
   ].filter(([, value]) => value !== undefined) as [string, unknown][];
   const profile = producerProfile(updates);
   if (Object.keys(profile).length) fields.push(["profile = profile ||", JSON.stringify(profile)]);
@@ -821,6 +859,111 @@ export async function getAuditLogs(filters?: { actorUserId?: string; targetType?
   const limit = filters?.limit ? ` LIMIT $${values.length}` : "";
   const result = await pool.query(`SELECT * FROM audit_logs ${where} ORDER BY at DESC${limit}`, values);
   return result.rows.map(mapAuditLog);
+}
+
+export async function importProducerRows(
+  rows: Array<Record<string, string>>,
+  actorUserId: string,
+  mode: "ALL_OR_NOTHING" | "VALID_ONLY" = "ALL_OR_NOTHING",
+  auditMetadata: Record<string, unknown> = {},
+) {
+  const { generateId } = await import("@/lib/utils");
+  const columns = [
+    "cultivo", "distrito", "nombre_area_cultivo", "productor", "id_cofibe_cg",
+    "numero_productor", "razon_social", "representante_legal", "direccion_fiscal",
+    "colonia", "municipio", "estado", "codigo_postal", "rfc", "nombre_contacto",
+    "telefono_contacto", "numero_celular", "correo_electronico", "correo_electronico_productor",
+  ];
+  const keys = ["Cultivo", "Distrito", "Growing Area Name", "Productor (Grower)", "COFIBE/ ID CG",
+    "Grower #", "Razón Social (Company name)", "Representante Legal (Administrator)", "Dirección Fiscal (Address)", "Colonia",
+    "Municipio", "Estado", "Zip Code", "RFC (Tax ID)", "Contact", "Telephone number",
+    "Cellular number", "Email", "Email productor"];
+  return withTransaction(async (client) => {
+    let created = 0; let updated = 0;
+    // Deliberately sequential: this keeps lock ordering deterministic and makes
+    // retries safe even for very large workbooks.
+    for (let offset = 0; offset < rows.length; offset += 250) {
+      for (const row of rows.slice(offset, offset + 250)) {
+        const values = keys.map((key) => row[key] ?? "");
+        const rfc = values[13].trim().toUpperCase();
+        const candidateId = generateId();
+        const upserted = await client.query(`INSERT INTO producers
+            (id, display_name, rfc, zona, contacto, email, phone, status, profile, ${columns.filter((c) => c !== "rfc").join(", ")})
+            VALUES ($20, COALESCE(NULLIF($4, ''), $14), $14, $2, $15, $18, $16, 'PENDIENTE', '{}'::jsonb,
+              ${columns.filter((c) => c !== "rfc").map((c) => `$${columns.indexOf(c) + 1}`).join(", ")})
+            ON CONFLICT (upper(btrim(rfc))) WHERE btrim(rfc) <> ''
+            DO UPDATE SET
+              ${columns.filter((c) => c !== "rfc").map((c) => `${c} = EXCLUDED.${c}`).join(", ")},
+              rfc = EXCLUDED.rfc,
+              display_name = EXCLUDED.display_name,
+              zona = EXCLUDED.zona,
+              contacto = EXCLUDED.contacto,
+              email = EXCLUDED.email,
+              phone = EXCLUDED.phone
+            RETURNING id, (xmax = 0) AS inserted`,
+          [...values, candidateId]);
+        const producerId = String(upserted.rows[0].id);
+        if (upserted.rows[0].inserted) created++;
+        else updated++;
+        const tipo = rfc.length === 12 ? "MORAL" : "FISICA";
+        await client.query(`INSERT INTO legal_entities (id, producer_id, rfc, tipo, status)
+          VALUES ($1, $2, $3, $4, 'PENDIENTE')
+          ON CONFLICT (producer_id, (upper(btrim(rfc)))) DO UPDATE SET tipo = EXCLUDED.tipo`,
+          [generateId(), producerId, rfc, tipo]);
+      }
+    }
+    await createAuditLog({
+      id: generateId(), actorUserId, action: "PRODUCER_BULK_IMPORT",
+      targetType: "PRODUCER_IMPORT",
+      targetId: String(auditMetadata.batchId ?? generateId()),
+      at: new Date().toISOString(),
+      metadata: { ...auditMetadata, mode, rows: rows.length, created, updated },
+    }, client);
+    return { created, updated, imported: rows.length };
+  });
+}
+
+export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[]) {
+  if (!rows.length) return { errors: [] as ImportError[], warnings: [] as ImportError[] };
+  const rfcs = rows.map((row) => row["RFC (Tax ID)"]);
+  const growerNumbers = rows.map((row) => row["Grower #"]);
+  const result = await pool.query(
+    `SELECT upper(btrim(rfc)) AS rfc, numero_productor
+       FROM producers
+      WHERE upper(btrim(rfc)) = ANY($1::text[])
+         OR numero_productor = ANY($2::text[])`,
+    [rfcs, growerNumbers],
+  );
+  const rfcSet = new Set(result.rows.map((row) => String(row.rfc)));
+  const growerOwners = new Map(
+    result.rows
+      .filter((row) => row.numero_productor)
+      .map((row) => [String(row.numero_productor), String(row.rfc)]),
+  );
+  const errors: ImportError[] = [];
+  const warnings: ImportError[] = [];
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    const rfc = row["RFC (Tax ID)"];
+    if (rfcSet.has(rfc)) {
+      warnings.push({
+        row: rowNumber,
+        field: "RFC (Tax ID)",
+        code: "EXISTING_RFC",
+        message: "El RFC ya existe y se actualizará.",
+      });
+    }
+    const ownerRfc = growerOwners.get(row["Grower #"]);
+    if (ownerRfc && ownerRfc !== rfc) {
+      errors.push({
+        row: rowNumber,
+        field: "Grower #",
+        code: "EXISTING_GROWER_NUMBER",
+        message: `Grower # ya pertenece a otro RFC (${ownerRfc}).`,
+      });
+    }
+  });
+  return { errors, warnings };
 }
 
 export async function exportDatabaseSnapshot(): Promise<Database> {

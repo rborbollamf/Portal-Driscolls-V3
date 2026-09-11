@@ -122,6 +122,7 @@ export class RuleEngine {
   ): EvaluationResult {
     if (rule.code === "PODERES_VENCIDOS") {
       const { daysBeforeExpiration } = rule.config;
+      if (!context.legalEntity.poderesVigentesAt) return { triggered: false };
       const poderesDate = new Date(context.legalEntity.poderesVigentesAt);
       const now = new Date();
       const daysUntilExpiration = Math.floor(

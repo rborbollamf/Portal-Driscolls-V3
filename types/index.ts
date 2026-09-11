@@ -63,7 +63,7 @@ export interface LegalEntity {
   producerId: string;
   rfc: string;
   tipo: LegalEntityType;
-  poderesVigentesAt: string;
+  poderesVigentesAt?: string;
   status: ValidationTaskStatus;
 }
 

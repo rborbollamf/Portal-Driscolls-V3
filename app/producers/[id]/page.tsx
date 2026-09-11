@@ -215,7 +215,9 @@ export default function ProducerDetailPage() {
                       <h4 className="font-semibold">{le.rfc}</h4>
                       <p className="text-sm text-gray-600">Tipo: {le.tipo}</p>
                       <p className="text-sm text-gray-600">
-                        Poderes vigentes hasta: {new Date(le.poderesVigentesAt).toLocaleDateString("es-MX")}
+                        Poderes vigentes hasta: {le.poderesVigentesAt
+                          ? new Date(le.poderesVigentesAt).toLocaleDateString("es-MX")
+                          : "Pendiente"}
                       </p>
                     </div>
                     <span
@@ -224,10 +226,12 @@ export default function ProducerDetailPage() {
                           ? "bg-green-100 text-green-800"
                           : le.status === "RISK"
                           ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
+                          : le.status === "FAIL"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {le.status}
+                      {le.status ?? "PENDIENTE"}
                     </span>
                   </div>
                 </div>

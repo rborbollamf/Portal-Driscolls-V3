@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 
-export function NavBar({ userRole }: { userRole: string }) {
+export function NavBar({ userRole, reportsEnabled = false }: { userRole: string; reportsEnabled?: boolean }) {
   const pathname = usePathname();
 
   const isActive = (path: string) => pathname === path;
@@ -59,7 +59,7 @@ export function NavBar({ userRole }: { userRole: string }) {
                 Alertas
               </Link>
 
-              <Link
+              {reportsEnabled && <Link
                 href="/reports"
                 className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   isActive("/reports")
@@ -68,10 +68,21 @@ export function NavBar({ userRole }: { userRole: string }) {
                 }`}
               >
                 Reportes
-              </Link>
+              </Link>}
 
               {userRole === "ADMIN" && (
                 <>
+                  <Link
+                    href="/admin/producer-import"
+                    className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                      isActive("/admin/producer-import")
+                        ? "bg-driscoll-darkgreen text-driscoll-yellow"
+                        : "hover:bg-driscoll-darkgreen/20"
+                    }`}
+                  >
+                    Importar
+                  </Link>
+
                   <Link
                     href="/admin/rules"
                     className={`px-4 py-2 rounded-md font-medium transition-colors ${

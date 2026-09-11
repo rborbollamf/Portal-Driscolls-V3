@@ -267,6 +267,13 @@ Ejecute `npm run db:restore-test` periódicamente en desarrollo. El comando crea
 
 ## 🚀 Próximas Fases
 
+### Entregas por etapa
+
+- **Etapa 1 (activa):** importación administrativa de productores desde CSV, validación separada, vista previa de 20 filas, modos todo-o-nada o solo válidos, rechazos descargables y plantilla.
+- **Etapa 2 (controlada):** reportes. Se habilita únicamente con `STAGE_2_ENABLED=true`; mientras sea `false`, el enlace no aparece y el acceso directo a `/reports` redirige al dashboard.
+
+El catálogo de distritos puede configurarse con `PRODUCER_IMPORT_DISTRICTS` como una lista separada por comas. Si no está definido, el importador exige un distrito no vacío y muestra una advertencia porque el catálogo oficial no fue proporcionado.
+
 - [ ] Integración con APIs reales de SAT e IMSS
 - [ ] Reglas avanzadas con multi-condiciones
 - [ ] Notificaciones por email/SMS

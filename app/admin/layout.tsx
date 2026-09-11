@@ -17,7 +17,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar userRole={user.role} />
+      <NavBar userRole={user.role} reportsEnabled={process.env.STAGE_2_ENABLED === "true"} />
       <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
     </div>
   );
