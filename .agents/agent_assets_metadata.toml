@@ -7,3 +7,19 @@ uri = "file://attached_assets/reporte-tecnico-funcional-portal-monitoreo.html"
 type = "text"
 title = "Reporte técnico y funcional actualizado — Portal de Monitoreo"
 description = "Versión actualizada con PostgreSQL, migraciones, inicialización segura de datos y post-fusión; mantiene la hoja de ruta para AWS."
+logical_id = "045db247-36ca-4eef-bd87-1429e2f0cd50"
+content_type = "text/html"
+
+[[outputs]]
+id = "cuRhyw2XbRB_AonRGmRdV"
+uri = "file://attached_assets/contexto-tecnico-portal-monitoreo.md"
+type = "text"
+title = "Contexto técnico del portal"
+description = "Resumen técnico en Markdown preparado para compartir con Claude."
+logical_id = "9702f1a9-22e9-47db-9981-5b9c8203660f"
+content_hash = "sha256:f77b85de475f11299661b6b5292b154115fd34c5e2babfc0d57b322e1270ec9c"
+size = 18910
+mtime_ms = 1789137851214
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:79394926-b587-4805-9369-8f7d4c9fabec/9702f1a9-22e9-47db-9981-5b9c8203660f/4fb1022b-01c9-4e02-a521-7daf796f267c"
+storage_version_token = "1789137860897768"
+content_type = "text/markdown"
