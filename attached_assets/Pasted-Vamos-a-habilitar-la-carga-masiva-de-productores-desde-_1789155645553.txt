@@ -1,0 +1,52 @@
+Vamos a habilitar la carga masiva de productores desde un archivo Excel y a limpiar el alcance de reportes para Etapa 1.
+
+CONTEXTO:
+- El archivo maestro ("BD Growers Format_Driscolls_Layout.xlsx", hoja "ALL complete Data Base") tiene ~900 registros (85% personas morales, 15% personas físicas).
+- El layout tiene EXACTAMENTE estas 19 columnas, en este orden (encabezado | tipo | obligatorio):
+  1. Cultivo | catálogo (RASP, BLUE, BLACK, STRAW) | Sí
+  2. Distrito | catálogo | Sí
+  3. Growing Area Name | texto | Sí
+  4. Productor (Grower) | texto | Sí
+  5. COFIBE/ ID CG | texto | No
+  6. Grower # | entero (clave de negocio) | Sí
+  7. Razón Social (Company name) | texto | Sí
+  8. Representante Legal (Administrator) | texto | Sí si es persona moral
+  9. Dirección Fiscal (Address) | texto | Sí
+  10. Colonia | texto | No
+  11. Municipio | texto | Sí
+  12. Estado | catálogo (estados MX) | Sí
+  13. Zip Code | texto de 5 dígitos (NO numérico, preserva ceros) | Sí
+  14. RFC (Tax ID) | RFC 12/13 caracteres, clave natural | Sí
+  15. Contact | texto | No
+  16. Telephone number | texto (solo dígitos) | No
+  17. Cellular number | texto (solo dígitos) | No
+  18. Email | email | No
+  19. Email productor | email | No
+- Tipo de persona: deducir de la longitud del RFC (13=física, 12=moral) y/o de la Razón Social.
+
+PARTE A — Importador de Excel:
+1. Crea una pantalla "Carga masiva de productores" (solo rol Administrador) con: subir archivo .xlsx/.csv, previsualización de las primeras 20 filas, y botón "Validar" separado de "Importar".
+2. Usa una librería de parsing en el servidor (p.ej. 'xlsx' / SheetJS o 'exceljs'). El parsing ocurre en una API Route del servidor, NUNCA en el cliente.
+3. Validación fila por fila ANTES de escribir en BD:
+   - RFC con formato válido (12 caracteres morales / 13 físicas) y dígito verificador.
+   - Campos obligatorios presentes; tipos correctos; catálogos (distrito, cultivo) contra valores permitidos.
+   - Detección de RFC duplicados dentro del archivo y contra la BD.
+4. Resultado de validación: tabla de errores con número de fila, columna y motivo, y opción de descargar un CSV de rechazos. Si hay errores, NO se importa nada (todo-o-nada) salvo que el admin elija "importar solo las filas válidas".
+5. Importación idempotente: usa "upsert" por RFC (actualiza si existe, inserta si no). Envuélvela en una transacción y en lotes (p.ej. 100 filas) para 900+ registros. Registra en la bitácora de auditoría quién importó, cuándo y cuántas filas.
+6. Ajusta el modelo de datos de PostgreSQL y las migraciones para cubrir los 19 campos del layout. Si un campo es de persona moral que no aplica a física (o viceversa), permite nulos y valida por tipo de persona.
+7. Entrega un archivo plantilla .xlsx descargable desde la misma pantalla, con los encabezados exactos y una fila de ejemplo.
+
+PARTE B — Limpieza de reportes para Etapa 1:
+1. Toma el "Catálogo de reportes/pantallas" de la auditoría (Fase 0).
+2. Deja activos SOLO los que aplican a Etapa 1 (MVP de monitoreo): dashboard base, expediente del productor, listado y resolución de alertas, y exportación CSV.
+3. CASO ESPECÍFICO — el módulo `/reports`: hoy usa un dataset ESTÁTICO de `lib/data/demoData.ts` ("Empresa Demo SA de CV", fecha fija de 2022, reporte #2054) y NO consume productores, alertas ni snapshots reales de PostgreSQL. No lo dejes como está (da impresión de datos reales sin serlo). Elige una de dos, y dime cuál recomiendas:
+   (a) Desconectarlo de la navegación y moverlo detrás del feature flag STAGE_2_ENABLED=false, documentado como "reportería avanzada de Etapa 2"; o
+   (b) Reconectar solo las vistas que sí aportan en Etapa 1 a datos reales de PostgreSQL, y mandar el resto a Etapa 2.
+   Para Etapa 1 la opción (a) suele ser la más limpia salvo que una vista concreta se necesite ya.
+4. Lo demás complejo o especializado (analítica avanzada, cruces sofisticados, reportes que requieren fuentes aún no integradas) NO lo borres: muévelo detrás del mismo feature flag STAGE_2_ENABLED y déjalo documentado como "Etapa 2".
+5. Documenta en un breve README qué quedó activo, qué pasó a Etapa 2 y por qué.
+
+NOTA SOBRE REGLAS (no la implementes en esta fase, solo tenla presente): la capa de validación hoy solo evalúa 5 códigos fijos (SAT_OPINION_NEGATIVA, IMSS_SUSPENSION, ENDEUDAMIENTO_ALTO, LIQUIDEZ_BAJA, PODERES_VENCIDOS); una regla nueva creada en la UI no se ejecuta. Si al limpiar reportes tocas la administración de reglas, NO la rompas y márcame esa brecha para resolverla después.
+
+Antes de modificar nada, muéstrame el plan: qué campos tendrá el modelo de carga masiva, qué reportes quedan activos, qué pasa a feature flag, y tu recomendación (a)/(b) para /reports. Espera mi confirmación.
+Al terminar: resumen de cambios (archivos tocados, migraciones nuevas) y cómo probar la carga con un archivo de ejemplo.
