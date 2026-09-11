@@ -1,0 +1,26 @@
+Actúa como arquitecto de software senior revisando este proyecto Next.js/PostgreSQL.
+NO modifiques código todavía. Solo audita y reporta.
+
+Recorre todo el repositorio y entrégame un informe en Markdown con estas secciones:
+
+1. INVENTARIO
+   - Árbol de carpetas principal (app/, components/, lib/, prisma o migraciones SQL, scripts/).
+   - package.json: dependencias de producción vs desarrollo, versiones, y cuáles están desactualizadas o sin usar.
+   - Variables de entorno esperadas (busca process.env.* en todo el código) y cuáles NO están documentadas en un .env.example.
+
+2. ESTADO FRENTE A OBJETIVOS DE PRODUCCIÓN (responde SÍ / NO / PARCIAL + evidencia con ruta de archivo):
+   a) ¿Está preparado para conectarse a fuentes externas reales (SAT, IMSS, Buró de Crédito) vía API? ¿Dónde vive hoy la capa de integración y qué está simulado (mock)?
+   b) ¿Existe un mecanismo para resguardar secretos/credenciales (p.ej. CIEC) fuera del código? ¿Hay secretos hardcodeados o en el repo?
+   c) ¿El módulo de autenticación es robusto? Describe: proveedor, manejo de sesión/JWT, expiración, hash de contraseñas, protección de rutas/API, y si existe algún punto de extensión para SSO corporativo (LDAP/Active Directory, OIDC, SAML).
+   d) ¿Está preparado para desplegarse en contenedores? ¿Hay Dockerfile, .dockerignore, healthcheck, configuración por variables de entorno (12-factor)? ¿Algo lo ata a Replit o al filesystem local?
+   e) ¿La arquitectura (monolito) tiene acoplamientos que impidan escalar? Señala: procesos in-memory (node-cron dentro del server), estado en memoria, escrituras a disco local, y trabajos que asumen una sola instancia.
+
+3. RIESGOS Y DEUDA TÉCNICA
+   - Top 10 riesgos técnicos ordenados por severidad, cada uno con archivo/línea y una recomendación de una frase.
+   - Marca explícitamente cualquier credencial de demostración, usuario semilla o dato ficticio embebido.
+
+4. CATÁLOGO DE REPORTES/PANTALLAS
+   - Lista cada reporte, dashboard y pantalla existente con su ruta y una línea de "para qué sirve".
+   - Marca cuáles dependen de datos que hoy son mock.
+
+Entrega solo el informe. No cambies archivos.
