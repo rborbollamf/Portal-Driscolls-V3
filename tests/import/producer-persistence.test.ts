@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createProducer, updateProducer } from "../../lib/db";
+import { createProducer, getProducerImportDatabaseIssues, updateProducer } from "../../lib/db";
+import type { ProducerImportRow } from "../../lib/services/producer-import";
 import type { Producer } from "../../types";
 
 const producer: Producer = {
@@ -80,4 +81,20 @@ test("updateProducer writes typed import fields instead of dropping them", async
   assert.match(capturedSql, /numero_productor = /);
   assert.match(capturedSql, /codigo_postal = /);
   assert.equal(result?.numeroProductor, "900002");
+});
+
+test("database import conflicts retain physical source row numbers", async () => {
+  const importRow = {
+    "RFC (Tax ID)": "XAXX010101004",
+    "Grower #": "900001",
+  } as ProducerImportRow;
+  const db = {
+    query: async () => ({
+      rows: [{ rfc: "OTRO010101AB1", numero_productor: "900001" }],
+      rowCount: 1,
+    }),
+  };
+  const issues = await getProducerImportDatabaseIssues([importRow], [17], db as never);
+  assert.equal(issues.errors[0]?.row, 17);
+  assert.equal(issues.errors[0]?.code, "EXISTING_GROWER_NUMBER");
 });

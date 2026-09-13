@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { getProducerImportDatabaseIssues, importProducerRows } from "@/lib/db";
-import { parseProducerImport, summarizeValidation } from "@/lib/services/producer-import";
+import { filterValidImportRows, isFileLevelImportError, parseProducerImport, summarizeValidation } from "@/lib/services/producer-import";
 import { createHash } from "crypto";
 
 export const runtime = "nodejs";
@@ -19,22 +19,22 @@ export async function POST(request: NextRequest) {
     const mode = form.get("mode") === "VALID_ONLY" ? "VALID_ONLY" : "ALL_OR_NOTHING";
     const buffer = Buffer.from(await file.arrayBuffer());
     const parsed = await parseProducerImport(buffer, file.name);
-    const database = await getProducerImportDatabaseIssues(parsed.rows);
+    const database = await getProducerImportDatabaseIssues(parsed.rows, parsed.rowNumbers);
     const validation = summarizeValidation(
       parsed.rows,
+      parsed.rowNumbers,
       [...parsed.errors, ...database.errors],
       [...parsed.warnings, ...database.warnings],
       parsed.totalRows,
     );
-    const fileErrors = validation.errors.filter((error) => error.row <= 1);
+    const fileErrors = validation.errors.filter(isFileLevelImportError);
     if (fileErrors.length) {
       return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
     }
     if (mode === "ALL_OR_NOTHING" && validation.errors.length) {
       return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
     }
-    const invalidRows = new Set(validation.errors.map((error) => error.row));
-    const rows = validation.rows.filter((_, index) => !invalidRows.has(index + 2));
+    const rows = filterValidImportRows(validation.rows, validation.rowNumbers, validation.errors);
     const hash = createHash("sha256").update(buffer).digest("hex");
     const result = await importProducerRows(rows, auth.userId, mode, {
       batchId: `producer-import-${hash.slice(0, 24)}`,

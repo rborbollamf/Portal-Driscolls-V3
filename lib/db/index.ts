@@ -923,11 +923,11 @@ export async function importProducerRows(
   });
 }
 
-export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[]) {
+export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[], rowNumbers: number[], db: Queryable = pool) {
   if (!rows.length) return { errors: [] as ImportError[], warnings: [] as ImportError[] };
   const rfcs = rows.map((row) => row["RFC (Tax ID)"]);
   const growerNumbers = rows.map((row) => row["Grower #"]);
-  const result = await pool.query(
+  const result = await db.query(
     `SELECT upper(btrim(rfc)) AS rfc, numero_productor
        FROM producers
       WHERE upper(btrim(rfc)) = ANY($1::text[])
@@ -943,7 +943,7 @@ export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[])
   const errors: ImportError[] = [];
   const warnings: ImportError[] = [];
   rows.forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = rowNumbers[index];
     const rfc = row["RFC (Tax ID)"];
     if (rfcSet.has(rfc)) {
       warnings.push({

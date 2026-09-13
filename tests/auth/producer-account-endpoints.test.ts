@@ -199,9 +199,9 @@ test("a valid link and a reassignment are persisted", async () => {
 
   await client.query("BEGIN");
   try {
-    for (const [id, name] of [
-      [firstProducerId, "First Producer"],
-      [secondProducerId, "Second Producer"],
+    for (const [id, name, rfc] of [
+      [firstProducerId, "First Producer", "RFCREASSIGN1"],
+      [secondProducerId, "Second Producer", "RFCREASSIGN2"],
     ]) {
       await client.query(
         `INSERT INTO producers
@@ -210,7 +210,7 @@ test("a valid link and a reassignment are persisted", async () => {
         [
           id,
           name,
-          `RFC${id}`.slice(0, 13),
+          rfc,
           "Norte",
           "Contact",
           `${id}@example.test`,

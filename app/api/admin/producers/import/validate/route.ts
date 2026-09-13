@@ -16,9 +16,10 @@ export async function POST(request: NextRequest) {
     if (!file.size) return NextResponse.json({ error: "El archivo está vacío." }, { status: 400 });
     if (file.size > 25 * 1024 * 1024) return NextResponse.json({ error: "File exceeds 25 MB limit" }, { status: 413 });
     const parsed = await parseProducerImport(Buffer.from(await file.arrayBuffer()), file.name);
-    const database = await getProducerImportDatabaseIssues(parsed.rows);
+    const database = await getProducerImportDatabaseIssues(parsed.rows, parsed.rowNumbers);
     const validation = summarizeValidation(
       parsed.rows,
+      parsed.rowNumbers,
       [...parsed.errors, ...database.errors],
       [...parsed.warnings, ...database.warnings],
       parsed.totalRows,
