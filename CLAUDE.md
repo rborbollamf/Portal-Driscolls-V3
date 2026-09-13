@@ -64,12 +64,18 @@ Existen: SAT (opinión de cumplimiento), IMSS (situación patronal), FINANCIERA 
 
 ## Cómo auditar (comandos)
 
+El repo **no usa ramas alternas**: se trabaja sobre `main` y cada fase se cierra con un tag anotado (`git tag -a`). El corte de una fase es el rango entre el tag anterior y el suyo.
+
 ```bash
-git fetch && git diff main...<rama-de-la-fase>   # cambios exactos de la fase
+git fetch --tags
+git tag -l --sort=-creatordate                        # ver los cortes disponibles
+git diff <tag-anterior>..<tag-de-la-fase>             # cambios exactos de la fase
+git log --oneline <tag-anterior>..<tag-de-la-fase>
 npm install
 npm run build          # debe pasar
 npm run test:auth && npm run test:monitoring
 npm audit              # aquí sí hay red; reporta CVEs
-git log --oneline -10
 ```
+Usa `..` (dos puntos), no `...`: sobre un `main` lineal no hay divergencia y `..` da exactamente los commits nuevos de la fase.
+
 Revisa además: que no haya secretos en el diff ni en el historial, que las rutas API nuevas tengan `requireAuth`, que las migraciones nuevas no alteren las aplicadas, y que el "resumen de cambios" de Replit coincida con el diff real.
