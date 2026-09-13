@@ -280,20 +280,74 @@ export async function setUserProducerAssociation(
   return db ? updateAssociation(db) : withTransaction(updateAssociation);
 }
 
-export async function getProducers(filters?: { producerId?: string; zona?: string; status?: string; limit?: number; offset?: number }) {
+export async function getProducers(
+  filters?: { producerId?: string; zona?: string; distrito?: string; status?: string; limit?: number; offset?: number },
+  db: Queryable = pool,
+) {
   const conditions: string[] = [];
   const values: unknown[] = [];
   if (filters?.producerId) { values.push(filters.producerId); conditions.push(`id = $${values.length}`); }
   if (filters?.zona) { values.push(filters.zona); conditions.push(`zona = $${values.length}`); }
+  if (filters?.distrito) { values.push(filters.distrito); conditions.push(`distrito = $${values.length}`); }
   if (filters?.status) { values.push(filters.status); conditions.push(`status = $${values.length}`); }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const count = await pool.query(`SELECT COUNT(*)::int AS total FROM producers ${where}`, values);
+  const count = await db.query(`SELECT COUNT(*)::int AS total FROM producers ${where}`, values);
   const pageValues = [...values];
   let paging = "";
   if (filters?.limit !== undefined) { pageValues.push(filters.limit); paging += ` LIMIT $${pageValues.length}`; }
   if (filters?.offset !== undefined) { pageValues.push(filters.offset); paging += ` OFFSET $${pageValues.length}`; }
-  const result = await pool.query(`SELECT * FROM producers ${where} ORDER BY display_name ASC${paging}`, pageValues);
+  const result = await db.query(`SELECT * FROM producers ${where} ORDER BY display_name ASC, id ASC${paging}`, pageValues);
   return { producers: result.rows.map(mapProducer), total: count.rows[0].total as number };
+}
+
+export type ProducerListCounts = {
+  legalEntitiesCount: number;
+  ranchesCount: number;
+  cropsCount: number;
+};
+
+export async function getProducerListCounts(producerIds: string[], db: Queryable = pool) {
+  const counts = new Map<string, ProducerListCounts>();
+  if (!producerIds.length) return counts;
+  const result = await db.query(
+    `SELECT p.id,
+            COUNT(DISTINCT le.id)::int AS legal_entities_count,
+            COUNT(DISTINCT r.id)::int AS ranches_count,
+            COUNT(DISTINCT c.id)::int AS crops_count
+       FROM producers p
+       LEFT JOIN legal_entities le ON le.producer_id = p.id
+       LEFT JOIN ranches r ON r.producer_id = p.id
+       LEFT JOIN crops c ON c.ranch_id = r.id
+      WHERE p.id = ANY($1::text[])
+      GROUP BY p.id`,
+    [producerIds],
+  );
+  for (const row of result.rows) {
+    counts.set(String(row.id), {
+      legalEntitiesCount: Number(row.legal_entities_count),
+      ranchesCount: Number(row.ranches_count),
+      cropsCount: Number(row.crops_count),
+    });
+  }
+  return counts;
+}
+
+export async function getProducerDistricts(producerId?: string, db: Queryable = pool) {
+  const values: unknown[] = [];
+  let producerScope = "";
+  if (producerId) {
+    values.push(producerId);
+    producerScope = ` AND id = $${values.length}`;
+  }
+  const result = await db.query(
+    `SELECT DISTINCT distrito
+       FROM producers
+      WHERE distrito IS NOT NULL
+        AND btrim(distrito) <> ''${producerScope}
+      ORDER BY distrito`,
+    values,
+  );
+  return result.rows.map((row) => String(row.distrito));
 }
 
 export async function getProducer(id: string) {

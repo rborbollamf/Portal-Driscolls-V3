@@ -1,28 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import type { Producer } from "@/types";
+import { PRODUCER_PAGE_SIZES } from "@/lib/services/producer-list";
+
+type ListedProducer = Producer & {
+  legalEntitiesCount: number;
+  ranchesCount: number;
+  cropsCount: number;
+};
+
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
 
 export default function ProducersPage() {
-  const [producers, setProducers] = useState<any[]>([]);
+  const [producers, setProducers] = useState<ListedProducer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ zona: "", status: "" });
+  const [filter, setFilter] = useState({ distrito: "", status: "" });
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
   useEffect(() => {
-    fetchProducers();
-  }, [filter]);
+    fetch("/api/producers/facets")
+      .then((response) => response.ok ? response.json() : { districts: [] })
+      .then((data) => setDistricts(data.districts ?? []))
+      .catch(() => setDistricts([]));
+  }, []);
 
-  const fetchProducers = async () => {
+  const fetchProducers = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filter.zona) params.append("zona", filter.zona);
+    params.set("page", String(page));
+    params.set("limit", String(limit));
+    if (filter.distrito) params.append("distrito", filter.distrito);
     if (filter.status) params.append("status", filter.status);
 
-    const response = await fetch(`/api/producers?${params.toString()}`);
-    const data = await response.json();
-    setProducers(data.producers || []);
-    setLoading(false);
-  };
+    try {
+      const response = await fetch(`/api/producers?${params.toString()}`);
+      const data = await response.json();
+      const nextPagination = data.pagination ?? { page: 1, limit, total: 0, totalPages: 1 };
+      if (page > nextPagination.totalPages) {
+        setPage(nextPagination.totalPages);
+        return;
+      }
+      setProducers(data.producers || []);
+      setPagination(nextPagination);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, limit, page]);
+
+  useEffect(() => {
+    void fetchProducers();
+  }, [fetchProducers]);
 
   const runDiagnostic = async (producerId: string) => {
     if (!confirm("¿Ejecutar diagnóstico completo?")) return;
@@ -45,7 +82,7 @@ export default function ProducersPage() {
     }
 
     alert("Diagnóstico completado");
-    fetchProducers();
+    void fetchProducers();
   };
 
   const getStatusColor = (status: string) => {
@@ -56,6 +93,8 @@ export default function ProducersPage() {
         return "bg-yellow-100 text-yellow-800";
       case "FAIL":
         return "bg-red-100 text-red-800";
+      case "PENDIENTE":
+        return "bg-blue-100 text-blue-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -74,18 +113,18 @@ export default function ProducersPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Zona
+              Distrito
             </label>
             <select
-              value={filter.zona}
-              onChange={(e) => setFilter({ ...filter, zona: e.target.value })}
+              value={filter.distrito}
+              onChange={(e) => {
+                setPage(1);
+                setFilter({ ...filter, distrito: e.target.value });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
-              <option value="">Todas las zonas</option>
-              <option value="Occidente">Occidente</option>
-              <option value="Bajío">Bajío</option>
-              <option value="Centro">Centro</option>
-              <option value="Norte">Norte</option>
+              <option value="">Todos los distritos</option>
+              {districts.map((district) => <option key={district} value={district}>{district}</option>)}
             </select>
           </div>
 
@@ -95,13 +134,32 @@ export default function ProducersPage() {
             </label>
             <select
               value={filter.status}
-              onChange={(e) => setFilter({ ...filter, status: e.target.value })}
+              onChange={(e) => {
+                setPage(1);
+                setFilter({ ...filter, status: e.target.value });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="">Todos los estados</option>
               <option value="OK">OK</option>
               <option value="RISK">RISK</option>
               <option value="FAIL">FAIL</option>
+              <option value="PENDIENTE">PENDIENTE</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Registros por página
+            </label>
+            <select
+              value={limit}
+              onChange={(event) => {
+                setPage(1);
+                setLimit(Number(event.target.value));
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              {PRODUCER_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
         </div>
@@ -123,7 +181,7 @@ export default function ProducersPage() {
                   RFC
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Zona
+                   Distrito
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
@@ -149,12 +207,12 @@ export default function ProducersPage() {
                     {producer.rfc}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {producer.zona}
+                     {producer.distrito || "Sin distrito"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        producer.status
+                         producer.status || "PENDIENTE"
                       )}`}
                     >
                       {producer.status || "PENDIENTE"}
@@ -181,7 +239,30 @@ export default function ProducersPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          <div className="flex flex-col gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              {pagination.total} {pagination.total === 1 ? "productor" : "productores"} · Página {pagination.page} de {pagination.totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={pagination.page <= 1 || loading}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))}
+                disabled={pagination.page >= pagination.totalPages || loading}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+         </div>
       )}
     </div>
   );
