@@ -8,6 +8,20 @@ export const PRODUCER_IMPORT_HEADERS = [
 ] as const;
 export type ProducerImportRow = Record<(typeof PRODUCER_IMPORT_HEADERS)[number], string>;
 export type ImportError = { row: number; field?: string; code: string; message: string };
+export class ProducerImportBusinessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProducerImportBusinessError";
+  }
+}
+
+export class ProducerImportConflictError extends Error {
+  constructor(public readonly errors: ImportError[]) {
+    super("La importación contiene conflictos con productores existentes.");
+    this.name = "ProducerImportConflictError";
+  }
+}
+
 export type RejectedImportRow = { row: number; values: ProducerImportRow; errors: ImportError[] };
 export type ParsedProducerImport = {
   rows: ProducerImportRow[];

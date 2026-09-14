@@ -15,7 +15,11 @@ import type {
   User,
   ValidationTask,
 } from "@/types";
-import type { ImportError, ProducerImportRow } from "@/lib/services/producer-import";
+import {
+  ProducerImportConflictError,
+  type ImportError,
+  type ProducerImportRow,
+} from "@/lib/services/producer-import";
 
 export type Queryable = Pick<Pool, "query"> | PoolClient;
 
@@ -917,6 +921,7 @@ export async function getAuditLogs(filters?: { actorUserId?: string; targetType?
 
 export async function importProducerRows(
   rows: Array<Record<string, string>>,
+  rowNumbers: number[],
   actorUserId: string,
   mode: "ALL_OR_NOTHING" | "VALID_ONLY" = "ALL_OR_NOTHING",
   auditMetadata: Record<string, unknown> = {},
@@ -933,6 +938,15 @@ export async function importProducerRows(
     "Municipio", "Estado", "Zip Code", "RFC (Tax ID)", "Contact", "Telephone number",
     "Cellular number", "Email", "Email productor"];
   return withTransaction(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["producer_bulk_import"]);
+    const databaseIssues = await getProducerImportDatabaseIssues(
+      rows as ProducerImportRow[],
+      rowNumbers,
+      client,
+    );
+    if (databaseIssues.errors.length) {
+      throw new ProducerImportConflictError(databaseIssues.errors);
+    }
     let created = 0; let updated = 0;
     // Deliberately sequential: this keeps lock ordering deterministic and makes
     // retries safe even for very large workbooks.
@@ -979,13 +993,13 @@ export async function importProducerRows(
 
 export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[], rowNumbers: number[], db: Queryable = pool) {
   if (!rows.length) return { errors: [] as ImportError[], warnings: [] as ImportError[] };
-  const rfcs = rows.map((row) => row["RFC (Tax ID)"]);
-  const growerNumbers = rows.map((row) => row["Grower #"]);
+  const rfcs = rows.map((row) => row["RFC (Tax ID)"].trim().toUpperCase());
+  const growerNumbers = rows.map((row) => row["Grower #"].trim());
   const result = await db.query(
-    `SELECT upper(btrim(rfc)) AS rfc, numero_productor
+    `SELECT upper(btrim(rfc)) AS rfc, btrim(numero_productor) AS numero_productor
        FROM producers
       WHERE upper(btrim(rfc)) = ANY($1::text[])
-         OR numero_productor = ANY($2::text[])`,
+         OR btrim(numero_productor) = ANY($2::text[])`,
     [rfcs, growerNumbers],
   );
   const rfcSet = new Set(result.rows.map((row) => String(row.rfc)));
@@ -998,7 +1012,7 @@ export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[],
   const warnings: ImportError[] = [];
   rows.forEach((row, index) => {
     const rowNumber = rowNumbers[index];
-    const rfc = row["RFC (Tax ID)"];
+    const rfc = row["RFC (Tax ID)"].trim().toUpperCase();
     if (rfcSet.has(rfc)) {
       warnings.push({
         row: rowNumber,
@@ -1007,7 +1021,7 @@ export async function getProducerImportDatabaseIssues(rows: ProducerImportRow[],
         message: "El RFC ya existe y se actualizará.",
       });
     }
-    const ownerRfc = growerOwners.get(row["Grower #"]);
+    const ownerRfc = growerOwners.get(row["Grower #"].trim());
     if (ownerRfc && ownerRfc !== rfc) {
       errors.push({
         row: rowNumber,

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createProducer, getProducerImportDatabaseIssues, updateProducer } from "../../lib/db";
-import type { ProducerImportRow } from "../../lib/services/producer-import";
+import {
+  type ProducerImportRow,
+} from "../../lib/services/producer-import";
 import type { Producer } from "../../types";
 
 const producer: Producer = {
@@ -89,12 +91,37 @@ test("database import conflicts retain physical source row numbers", async () =>
     "Grower #": "900001",
   } as ProducerImportRow;
   const db = {
-    query: async () => ({
+    query: async (sql: string, values: unknown[]) => ({
       rows: [{ rfc: "OTRO010101AB1", numero_productor: "900001" }],
       rowCount: 1,
+      sql,
+      values,
     }),
   };
   const issues = await getProducerImportDatabaseIssues([importRow], [17], db as never);
   assert.equal(issues.errors[0]?.row, 17);
   assert.equal(issues.errors[0]?.code, "EXISTING_GROWER_NUMBER");
+});
+
+test("database import conflicts use the same trimmed Grower normalization as the unique index", async () => {
+  const importRow = {
+    "RFC (Tax ID)": "XAXX010101004",
+    "Grower #": " 900001 ",
+  } as ProducerImportRow;
+  let capturedSql = "";
+  let capturedValues: unknown[] = [];
+  const db = {
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return {
+        rows: [{ rfc: "OTRO010101AB1", numero_productor: "900001" }],
+        rowCount: 1,
+      };
+    },
+  };
+  const issues = await getProducerImportDatabaseIssues([importRow], [37], db as never);
+  assert.match(capturedSql, /btrim\(numero_productor\) = ANY/);
+  assert.deepEqual(capturedValues[1], ["900001"]);
+  assert.equal(issues.errors[0]?.row, 37);
 });
