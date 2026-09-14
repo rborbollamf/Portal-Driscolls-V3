@@ -79,3 +79,13 @@ npm audit              # aquí sí hay red; reporta CVEs
 Usa `..` (dos puntos), no `...`: sobre un `main` lineal no hay divergencia y `..` da exactamente los commits nuevos de la fase.
 
 Revisa además: que no haya secretos en el diff ni en el historial, que las rutas API nuevas tengan `requireAuth`, que las migraciones nuevas no alteren las aplicadas, y que el "resumen de cambios" de Replit coincida con el diff real.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
