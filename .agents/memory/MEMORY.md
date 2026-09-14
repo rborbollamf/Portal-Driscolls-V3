@@ -3,3 +3,4 @@
 - [Reliable monitoring concurrency](reliable-monitoring-concurrency.md) — validation jobs must retain their idempotency key and fenced lease through every persisted effect.
 - [Zona and distrito semantics](zona-distrito-semantics.md) — listings filter by imported distrito; zona remains unresolved until the business mapping is defined.
 - [Fase 1 audit state](fase-1-estado-auditoria.md) — audit corrections are closed; preserve the verified RFC, catalog-confirmation, report, and Replit firewall constraints.
+- [Schema drift detection](schema-drift-detection.md) — db/schema.sql must be regenerated from the live database every phase; migrations are tracked by filename only, with no checksum.
