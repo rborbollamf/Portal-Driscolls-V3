@@ -2,4 +2,4 @@
 - [Post-merge database initialization](post-merge-database-initialization.md) — dependency sync, migrations and development-only data import must be safe to repeat after a merge.
 - [Reliable monitoring concurrency](reliable-monitoring-concurrency.md) — validation jobs must retain their idempotency key and fenced lease through every persisted effect.
 - [Zona and distrito semantics](zona-distrito-semantics.md) — listings filter by imported distrito; zona remains unresolved until the business mapping is defined.
-- [Fase 1 audit state](fase-1-estado-auditoria.md) — five blocking findings, and the verified facts later phases must not re-derive.
+- [Fase 1 audit state](fase-1-estado-auditoria.md) — audit corrections are closed; preserve the verified RFC, catalog-confirmation, report, and Replit firewall constraints.

@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { getProducerImportDatabaseIssues, importProducerRows } from "@/lib/db";
 import { filterValidImportRows, isFileLevelImportError, parseProducerImport, summarizeValidation } from "@/lib/services/producer-import";
 import { createHash } from "crypto";
+import { producerImportErrorResponse } from "@/lib/services/producer-import-response";
 
 export const runtime = "nodejs";
 
@@ -35,8 +36,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
     }
     const rows = filterValidImportRows(validation.rows, validation.rowNumbers, validation.errors);
+    const invalidRows = new Set(validation.errors.map((error) => error.row));
+    const rowNumbers = validation.rowNumbers.filter((rowNumber) => !invalidRows.has(rowNumber));
     const hash = createHash("sha256").update(buffer).digest("hex");
-    const result = await importProducerRows(rows, auth.userId, mode, {
+    const result = await importProducerRows(rows, rowNumbers, auth.userId, mode, {
       batchId: `producer-import-${hash.slice(0, 24)}`,
       filename: file.name,
       sha256: hash,
@@ -56,6 +59,6 @@ export async function POST(request: NextRequest) {
       preview: rows.slice(0, 20),
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Import failed" }, { status: 400 });
+    return producerImportErrorResponse(error);
   }
 }

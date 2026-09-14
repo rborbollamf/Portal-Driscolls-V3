@@ -115,9 +115,9 @@ function cellText(cell: ExcelJS.CellValue): string {
 export async function parseProducerImport(buffer: Buffer, filename: string, maxRows = 50_000) {
   const extension = filename.toLowerCase().match(/\.[^.]+$/)?.[0];
   if (extension !== ".csv" && extension !== ".xlsx") {
-    throw new Error("Solo se permiten archivos .xlsx o .csv.");
+    throw new ProducerImportBusinessError("Solo se permiten archivos .xlsx o .csv.");
   }
-  if (!buffer.length) throw new Error("El archivo está vacío.");
+  if (!buffer.length) throw new ProducerImportBusinessError("El archivo está vacío.");
   const workbook = new ExcelJS.Workbook();
   if (extension === ".csv") {
     const text = buffer.toString("utf8").replace(/^\uFEFF/, "");
@@ -129,13 +129,15 @@ export async function parseProducerImport(buffer: Buffer, filename: string, maxR
         if (ch === '"') { if (quoted && line[i + 1] === '"') { current += '"'; i++; } else quoted = !quoted; }
         else if (ch === "," && !quoted) { out.push(current.trim()); current = ""; } else current += ch;
       }
-      if (quoted) throw new Error("El CSV contiene una celda entrecomillada sin cerrar.");
+      if (quoted) throw new ProducerImportBusinessError("El CSV contiene una celda entrecomillada sin cerrar.");
       out.push(current.trim()); return out;
     });
     return validateRows(records, lines.map((_, index) => index + 1), maxRows);
   }
   await workbook.xlsx.load(buffer);
-  if (workbook.worksheets.length !== 1 || workbook.worksheets[0].name !== "ALL complete Data Base") throw new Error('Workbook must contain exactly one worksheet named "ALL complete Data Base".');
+  if (workbook.worksheets.length !== 1 || workbook.worksheets[0].name !== "ALL complete Data Base") {
+    throw new ProducerImportBusinessError('Workbook must contain exactly one worksheet named "ALL complete Data Base".');
+  }
   const sheet = workbook.worksheets[0];
   const records: string[][] = [];
   const rowNumbers: number[] = [];
