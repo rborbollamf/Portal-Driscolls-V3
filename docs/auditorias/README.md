@@ -5,11 +5,16 @@ Reportes de auditoría de Claude Code sobre el trabajo construido en Replit. Uno
 ## Convención de nombres
 
 ```
+AAAA-MM-DD-<fase>-prompt.md          prompt de implementación para Replit (abre la fase)
 AAAA-MM-DD-<fase>.md                 informe de auditoría
 AAAA-MM-DD-<fase>-correcciones.md    prompt de correcciones para Replit
 AAAA-MM-DD-<fase>-cierre.md          informe de cierre, tras aplicar las correcciones
 AAAA-MM-DD-<fase>-pendientes.md      prompt de pendientes no bloqueantes
 ```
+
+El ciclo completo de una fase —sesión de diseño, prompt, implementación, auditoría, correcciones, cierre— está definido en la sección «Cómo se abre cada fase» del [`CLAUDE.md`](../../CLAUDE.md) de la raíz. **Ninguna fase arranca sin la sesión de diseño previa:** los criterios de aceptación del `CLAUDE.md` sirven para auditar, no para encargar.
+
+A la fecha solo la Fase 1 tiene prompts escritos.
 
 ## Índice
 

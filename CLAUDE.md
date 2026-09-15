@@ -34,6 +34,30 @@
 - **`db/schema.sql` se regenera desde la base viva al cerrar cada fase** y se commitea. Es lo único que detecta cambios hechos sin migración. Ver [`.agents/memory/schema-drift-detection.md`](.agents/memory/schema-drift-detection.md).
 - **El algoritmo de módulo 11 del RFC es correcto.** Verificado contra RFCs reales del SAT. Si un archivo falla en masa, la data es sintética con homoclaves aleatorias. **No lo "arregles".**
 - **Hay PostgreSQL local para auditar** sin depender de Replit. Procedimiento en [`docs/auditorias/README.md`](docs/auditorias/README.md).
+- **Ninguna fase arranca sin sesión de diseño previa.** Ver «Cómo se abre cada fase» abajo. Solo la Fase 1 tiene prompts escritos.
+
+### Cómo se abre cada fase — protocolo obligatorio
+
+> **Solo existen prompts de implementación para la Fase 1.** Las fases 2, 2B, 3, 4, 5, 6 y 7 tienen únicamente sus *criterios de aceptación* (una o dos líneas más abajo en este archivo). **Un criterio de aceptación NO es un encargo ejecutable.**
+
+Ninguna fase arranca sin pasar por estos seis pasos, en orden:
+
+| | Paso | Quién |
+|---|---|---|
+| 1 | **Sesión de diseño.** Claude lee el código relevante y plantea las decisiones abiertas con una recomendación por cada una. No las decide por su cuenta. | Claude + usuario |
+| 2 | **Prompt de implementación** en `docs/auditorias/AAAA-MM-DD-<fase>-prompt.md`: rutas y líneas reales, criterios de aceptación binarios, invariantes, y una lista explícita de «fuera de alcance — NO tocar». | Claude |
+| 3 | **Implementación** en commits atómicos sobre `main`, uno por punto del alcance. Tag anotado al cerrar, **y se sube**. | Replit |
+| 4 | **Auditoría del diff** contra los criterios de aceptación, más build, tests, `npm audit` y verificación contra PostgreSQL local. Informe en `docs/auditorias/`. | Claude |
+| 5 | **Prompt de correcciones**, si la auditoría arroja bloqueantes. | Claude |
+| 6 | **Actualizar esta sección** de estado. | Claude |
+
+**Por qué el paso 1 no se salta.** Un prompt escrito sin haber visto el código sale genérico, y lo genérico se construye mal: Replit acaba decidiendo por omisión cosas que eran del negocio. Ejemplos vivos de decisiones que tuvieron que tomarse antes de escribir nada — el filtro del listado por `distrito` en vez de `zona`; que el dígito verificador del RFC bloquee en lugar de advertir; el formato telefónico nacional de 10 dígitos. Ninguna se deducía del criterio de aceptación.
+
+**Decisiones abiertas ya identificadas, por fase:**
+
+- **Fase 2B** — qué lenguaje de expresión usa el motor de reglas, qué variables y funciones expone la lista blanca, cómo se versionan las reglas.
+- **Fases 3 a 6** — la arquitectura AWS está acordada a nivel de componentes (Secrets Manager + KMS, S3 con Object Lock, ECS Fargate), **no de implementación**. Requieren definición antes de redactar.
+- **Fase 2** — es la excepción: el código ya existe y está revisado, así que su prompt puede redactarse sin esperar a otra fase.
 
 ### Pendiente de decisión de negocio con Driscoll's
 
