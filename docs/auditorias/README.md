@@ -116,10 +116,16 @@ El riesgo va en la dirección peligrosa. Su base tendría una columna que las mi
 
 ```bash
 pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges \
-  | grep -vE '^\\(restrict|unrestrict)' > db/schema.sql
+  | grep -vE '^\\(restrict|unrestrict)|^-- Dumped (from database|by pg_dump) version' \
+  > db/schema.sql
 ```
 
-El `grep` no es opcional: `pg_dump` emite una línea `\restrict` con token aleatorio en cada corrida, que ensuciaría todos los diffs. Con ese filtro el dump es determinista — verificado generándolo dos veces.
+El filtro no es opcional, y quita dos clases de ruido:
+
+- **`\restrict` / `\unrestrict`** — `pg_dump` emite un token aleatorio en cada corrida.
+- **`-- Dumped from database version` / `-- Dumped by pg_dump version`** — cambian con la versión de PostgreSQL de cada entorno. Replit corre 16.10 y la base local de auditoría 16.15, así que sin este filtro **todo diff muestra dos líneas de diferencia aunque el esquema sea idéntico**. Eso son falsos positivos, y un detector que grita siempre deja de leerse.
+
+Con ambos filtros el dump es determinista y comparable entre entornos.
 
 Para comparar contra lo que producen las migraciones:
 

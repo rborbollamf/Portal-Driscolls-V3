@@ -15,17 +15,20 @@
 
 | | |
 |---|---|
-| **Fase en curso** | **1.4 — pendientes del cierre de la Fase 1** (ninguno bloqueante) |
+| **Fase en curso** | **1.4 auditada** — un solo pendiente parcial, ninguno bloqueante |
 | **Fase 1** | ✅ **CERRADA** — 9/9 criterios de aceptación, verificados contra PostgreSQL real |
-| **Último tag** | `fase-1.3-correcciones-auditoria` → `d306616`, anotado y en `origin` |
+| **Último tag** | `fase-1.4-pendientes` → `edbf21e`, anotado y en `origin` |
 | **Última auditoría** | [`docs/auditorias/2026-09-14-fase-1-cierre.md`](docs/auditorias/2026-09-14-fase-1-cierre.md) |
-| **Trabajo siguiente** | [`docs/auditorias/2026-09-14-fase-1-pendientes.md`](docs/auditorias/2026-09-14-fase-1-pendientes.md) |
+| **Trabajo siguiente** | Fase 2 — Auth. Requiere sesión de diseño previa (ver protocolo abajo) |
 
 ### Abierto ahora
 
-1. **`npm test` no puede pasar en verde.** Los `&&` abortan en `test:auth` por una prueba que lee `data/db.json`, archivo ausente del repo. Consecuencia: las 27 pruebas de `tests/import/**` y `tests/producers/**` **no corren en CI**. Es el arreglo de mayor retorno.
-2. **`tsconfig.json` ensucia el árbol.** Está commiteado con `"jsx": "react-jsx"` y `next build` lo reescribe a `"preserve"` en cada compilación.
-3. **Sin confirmar:** si el firewall de paquetes de Replit bloquea Next 14.2.35 por su CVE crítica. Se verificó que `npm ci` sí funciona fuera de Replit. Condiciona el plan de contenerización de la Fase 5.
+1. **`npm test` pasa con base de datos, falla sin ella.** Con `DATABASE_URL` alcanzable: **exit 0**, las cuatro suites, 55 pruebas pasando y 1 omitida. Sin base: 3 pruebas revientan en vez de omitirse, porque el guard de omisión se aplicó a 2 de los 4 archivos que necesitan PostgreSQL. Faltan `tests/auth/producer-account-endpoints.test.ts` (pruebas 8 y 9) y `tests/monitoring/concurrency-idempotency.test.ts`. En un CI **sin** base, los `&&` siguen abortando antes de `test:import`.
+2. **⚠️ Replit ya no puede correr `npm ci`.** Confirmado el 2026-09-15: su Socket Security Policy devuelve **E403** para el tarball de Next 14.2.35 por su CVE crítica, aunque todas las URLs del lockfile sean públicas. Fuera de Replit `npm ci` funciona. Solo se destraba subiendo Next, que es trabajo propio. **Condiciona la Fase 5.**
+
+### Resuelto en la Fase 1.4
+
+`tsconfig.json` ya es estable frente a `next build` · el bloque `nextjs-agent-rules` salió del `CLAUDE.md` · la prueba que leía `data/db.json` se omite si el archivo no existe · `filterValidImportRows` devuelve filas y números filtrados en paralelo · la prueba de concurrencia cierra su pool y crea y limpia su propio ADMIN · **el snapshot de esquema pasó su primera comparación: cero diferencias reales entre la base de Replit y la que producen las migraciones.**
 
 ### Decisiones vigentes — no re-litigar
 
