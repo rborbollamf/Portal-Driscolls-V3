@@ -17,7 +17,7 @@
 |---|---|
 | **Fase en curso** | **1.4 — pendientes del cierre de la Fase 1** (ninguno bloqueante) |
 | **Fase 1** | ✅ **CERRADA** — 9/9 criterios de aceptación, verificados contra PostgreSQL real |
-| **Último tag** | `fase-1.3-correcciones-auditoria` — ⚠️ **no está en `origin`**, hay que subirlo |
+| **Último tag** | `fase-1.3-correcciones-auditoria` → `d306616`, anotado y en `origin` |
 | **Última auditoría** | [`docs/auditorias/2026-09-14-fase-1-cierre.md`](docs/auditorias/2026-09-14-fase-1-cierre.md) |
 | **Trabajo siguiente** | [`docs/auditorias/2026-09-14-fase-1-pendientes.md`](docs/auditorias/2026-09-14-fase-1-pendientes.md) |
 
@@ -29,7 +29,9 @@
 
 ### Decisiones vigentes — no re-litigar
 
-- **Tags, no ramas.** Se trabaja sobre `main`; cada fase se cierra con un tag anotado (`git tag -a`) **y se sube** (`git push origin <tag>`; `git push` solo no envía tags).
+- **Tags, no ramas.** Se trabaja sobre `main`; cada fase se marca con un tag anotado.
+- **⚠️ Los tags los crea y sube Claude Code, nunca Replit.** Replit sube sus commits a `main` y avisa; ahí termina su parte. Claude coloca el tag anotado sobre el último commit entregado y lo empuja. Se decidió así porque `git push` no envía tags y el flujo de Replit los perdió dos veces: `fase-1.1-validaciones-import` quedó mal colocado y `fase-1.3-correcciones-auditoria` nunca llegó a `origin`.
+- **El tag marca el estado ENTREGADO, no el aprobado.** Se coloca antes de auditar, para que el rango de auditoría sea estable y reproducible. Un tag por fase.
 - **Replit construye, Claude Code audita.** Claude diagnostica, redacta el prompt de implementación y audita el diff. No es el constructor principal.
 - **`db/schema.sql` se regenera desde la base viva al cerrar cada fase** y se commitea. Es lo único que detecta cambios hechos sin migración. Ver [`.agents/memory/schema-drift-detection.md`](.agents/memory/schema-drift-detection.md).
 - **El algoritmo de módulo 11 del RFC es correcto.** Verificado contra RFCs reales del SAT. Si un archivo falla en masa, la data es sintética con homoclaves aleatorias. **No lo "arregles".**
@@ -40,16 +42,17 @@
 
 > **Solo existen prompts de implementación para la Fase 1.** Las fases 2, 2B, 3, 4, 5, 6 y 7 tienen únicamente sus *criterios de aceptación* (una o dos líneas más abajo en este archivo). **Un criterio de aceptación NO es un encargo ejecutable.**
 
-Ninguna fase arranca sin pasar por estos seis pasos, en orden:
+Ninguna fase arranca sin pasar por estos siete pasos, en orden:
 
 | | Paso | Quién |
 |---|---|---|
 | 1 | **Sesión de diseño.** Claude lee el código relevante y plantea las decisiones abiertas con una recomendación por cada una. No las decide por su cuenta. | Claude + usuario |
 | 2 | **Prompt de implementación** en `docs/auditorias/AAAA-MM-DD-<fase>-prompt.md`: rutas y líneas reales, criterios de aceptación binarios, invariantes, y una lista explícita de «fuera de alcance — NO tocar». | Claude |
-| 3 | **Implementación** en commits atómicos sobre `main`, uno por punto del alcance. Tag anotado al cerrar, **y se sube**. | Replit |
-| 4 | **Auditoría del diff** contra los criterios de aceptación, más build, tests, `npm audit` y verificación contra PostgreSQL local. Informe en `docs/auditorias/`. | Claude |
-| 5 | **Prompt de correcciones**, si la auditoría arroja bloqueantes. | Claude |
-| 6 | **Actualizar esta sección** de estado. | Claude |
+| 3 | **Implementación** en commits atómicos sobre `main`, uno por punto del alcance. `git push origin main` y avisar. **Sin tocar tags.** | Replit |
+| 4 | **Etiquetado.** Confirmar que los commits están en `origin`, crear el tag anotado sobre el último commit entregado y subirlo. Va **antes** de auditar: el tag fija el rango que se audita. | Claude |
+| 5 | **Auditoría del diff** contra los criterios de aceptación, más build, tests, `npm audit` y verificación contra PostgreSQL local. Informe en `docs/auditorias/`. | Claude |
+| 6 | **Prompt de correcciones**, si la auditoría arroja bloqueantes. | Claude |
+| 7 | **Actualizar esta sección** de estado. | Claude |
 
 **Por qué el paso 1 no se salta.** Un prompt escrito sin haber visto el código sale genérico, y lo genérico se construye mal: Replit acaba decidiendo por omisión cosas que eran del negocio. Ejemplos vivos de decisiones que tuvieron que tomarse antes de escribir nada — el filtro del listado por `distrito` en vez de `zona`; que el dígito verificador del RFC bloquee en lugar de advertir; el formato telefónico nacional de 10 dígitos. Ninguna se deducía del criterio de aceptación.
 
@@ -127,7 +130,7 @@ Existen: SAT (opinión de cumplimiento), IMSS (situación patronal), FINANCIERA 
 
 ## Cómo auditar (comandos)
 
-El repo **no usa ramas alternas**: se trabaja sobre `main` y cada fase se cierra con un tag anotado (`git tag -a`). El corte de una fase es el rango entre el tag anterior y el suyo.
+El repo **no usa ramas alternas**: se trabaja sobre `main` y cada fase se marca con un tag anotado (`git tag -a`) que **coloca Claude Code antes de auditar**, nunca Replit. El corte de una fase es el rango entre el tag anterior y el suyo. Procedimiento completo en [`docs/auditorias/README.md`](docs/auditorias/README.md).
 
 ```bash
 git fetch --tags

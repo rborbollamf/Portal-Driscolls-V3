@@ -25,11 +25,21 @@ A la fecha solo la Fase 1 tiene prompts escritos.
 
 ## Cómo se audita
 
-El repo no usa ramas alternas: se trabaja sobre `main` y cada fase se cierra con un tag anotado. El corte de una fase es el rango entre el tag anterior y el suyo.
+El repo no usa ramas alternas: se trabaja sobre `main` y cada fase se marca con un tag anotado. El corte de una fase es el rango entre el tag anterior y el suyo.
+
+**El tag lo pone Claude Code, no Replit**, y va **antes** de auditar, porque es lo que fija el rango. Marca el estado *entregado*, no el aprobado.
 
 ```bash
+# 1. confirmar que la entrega de Replit está en el remoto
 git fetch --tags
-git tag -l --sort=-creatordate
+git ls-remote origin refs/heads/main
+git pull --ff-only origin main
+
+# 2. etiquetar el último commit entregado
+git tag -a <tag-de-la-fase> -m "<resumen del alcance>"
+git push origin <tag-de-la-fase>
+
+# 3. auditar el rango
 git diff <tag-anterior>..<tag-de-la-fase>
 git log --oneline <tag-anterior>..<tag-de-la-fase>
 npm ci
@@ -40,7 +50,13 @@ npm audit
 
 Usa `..` (dos puntos), no `...`: sobre un `main` lineal no hay divergencia y `..` da exactamente los commits nuevos de la fase.
 
-Si el tag no está en `origin`, audita por rango de commits y repórtalo como hallazgo — `git push` no envía tags.
+Verifica que el tag quedó **anotado**, no ligero — un tag ligero no guarda autor, fecha ni mensaje:
+
+```bash
+git for-each-ref --format='%(refname:short) %(objecttype)' refs/tags/<tag>   # debe decir "tag"
+```
+
+Si `git pull --ff-only` falla, el local y el remoto divergieron: resuélvelo antes de etiquetar, no después.
 
 Los criterios de aceptación de cada fase están en el `CLAUDE.md` de la raíz.
 

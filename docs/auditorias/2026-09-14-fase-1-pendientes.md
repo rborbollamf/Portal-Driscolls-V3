@@ -47,15 +47,13 @@ Se commiteó `"jsx": "react-jsx"`. Next 14.2.35 lo reescribe a `"preserve"` en c
 - Quitar `.next/dev/types/**/*.ts` del `include`: es una ruta de Next 15/16 y este proyecto está en Next 14.2.35.
 - El reformateo a una propiedad por línea es indiferente; consérvalo o revviértelo, pero deja el archivo estable frente a `next build`.
 
-### 3. [N-5] Subir el tag
+### 3. [N-5] Tags — ya no es tu responsabilidad
 
-`fase-1.3-correcciones-auditoria` existe en tu entorno pero **no está en GitHub**. `git push` no envía tags:
+**Resuelto, no hay nada que hacer aquí.** Se deja constancia porque cambia el procedimiento de entrega.
 
-```bash
-git push origin fase-1.3-correcciones-auditoria
-```
+`fase-1.3-correcciones-auditoria` nunca llegó a GitHub desde tu entorno, y antes `fase-1.1-validaciones-import` quedó mal colocado. La causa es que `git push` no envía tags. Claude Code ya creó y subió el tag faltante sobre `d306616`.
 
-Confirma con `git ls-remote --tags origin`.
+**A partir de ahora los tags los gestiona Claude Code. No crees ni subas tags.** Tu entrega termina con `git push origin main` y el aviso. Ver «Cómo se abre cada fase» en el `CLAUDE.md`.
 
 ### 4. [N-4] Confirmar el comportamiento del firewall de Replit
 
@@ -117,12 +115,19 @@ Y confirma que `db/schema.sql` regenerado desde tu base no produce diff.
 
 ## Entrega
 
-Commits atómicos sobre `main`, uno por punto. Tag anotado, **y esta vez súbelo**:
+Commits atómicos sobre `main`, uno por punto del alcance.
 
 ```bash
-git tag -a fase-1.4-pendientes -m "Fase 1.4: npm test en verde, tsconfig estable, snapshot de esquema, limpieza menor"
 git push origin main
-git push origin fase-1.4-pendientes
 ```
 
-En el resumen incluye `git diff --stat` y `git log --oneline` del rango, la salida de los comandos de verificación, y la respuesta al punto 4 sobre el firewall.
+**No crees ni subas tags.** Del etiquetado se encarga Claude Code, que coloca el tag anotado sobre tu último commit antes de auditar. Tu entrega termina con el push a `main` y el aviso.
+
+En el resumen incluye:
+
+- `git diff --stat` y `git log --oneline` del rango que entregaste, con el SHA del primer y último commit
+- La salida de los comandos de verificación
+- La respuesta al punto 4 sobre el firewall de Replit
+- Si `db/schema.sql` produjo diff al regenerarlo, y por qué
+
+El resumen debe coincidir con el diff real.
