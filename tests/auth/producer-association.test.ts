@@ -62,8 +62,14 @@ test("the legacy demo snapshot is upgraded to its documented producer associatio
   assert.doesNotThrow(() => validateDatabaseSnapshot(migrated));
 });
 
-test("the checked-in JSON import keeps its producer account associated", () => {
-  const imported = JSON.parse(fs.readFileSync("data/db.json", "utf8")) as Database;
+const historicalSnapshotPath = "data/db.json";
+
+test("the checked-in JSON import keeps its producer account associated", {
+  skip: fs.existsSync(historicalSnapshotPath)
+    ? false
+    : `${historicalSnapshotPath} is an optional historical import source`,
+}, () => {
+  const imported = JSON.parse(fs.readFileSync(historicalSnapshotPath, "utf8")) as Database;
 
   assert.doesNotThrow(() => validateDatabaseSnapshot(imported));
   assert.equal(

@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { randomUUID } from "node:crypto";
 import { getPool, importProducerRows } from "../../lib/db";
 import { ProducerImportConflictError, type ProducerImportRow } from "../../lib/services/producer-import";
+
+let db: ReturnType<typeof getPool> | undefined;
+
+after(async () => {
+  await db?.end();
+});
 
 function rfcCheckDigit(body: string) {
   const padded = body.padStart(12, " ");
@@ -48,8 +54,21 @@ function importRow(rfc: string, growerNumber: string, name: string): ProducerImp
   };
 }
 
-test("concurrent imports serialize Grower number ownership without silent data loss", async () => {
-  const db = getPool();
+test("concurrent imports serialize Grower number ownership without silent data loss", async (context) => {
+  if (!process.env.DATABASE_URL) {
+    context.skip("DATABASE_URL is required for the PostgreSQL concurrency test");
+    return;
+  }
+  const pool = getPool();
+  db = pool;
+  try {
+    await pool.query("SELECT 1");
+  } catch {
+    context.skip("DATABASE_URL is not reachable; PostgreSQL concurrency test omitted");
+    await pool.end();
+    db = undefined;
+    return;
+  }
   const token = randomUUID().replaceAll("-", "");
   const suffix = token.slice(0, 11).toUpperCase();
   const prefix = lettersFromHex(token.slice(12, 16));
@@ -60,49 +79,70 @@ test("concurrent imports serialize Grower number ownership without silent data l
   assert.notEqual(firstRfc, secondRfc);
   const growerNumber = `T${suffix}`;
   const batchIds = [`concurrency-${suffix}-a`, `concurrency-${suffix}-b`];
-  const actor = await db.query("SELECT id FROM app_users WHERE role = $1 ORDER BY id LIMIT 1", ["ADMIN"]);
-  assert.ok(actor.rows[0]?.id, "An ADMIN user is required for the import audit log");
-
-  const fixtureIds: string[] = [];
+  const actorId = `concurrency-admin-${suffix}`;
   const cleanup = async () => {
-    if (!fixtureIds.length) return;
-    await db.query(
-      "DELETE FROM legal_entities WHERE producer_id = ANY($1::text[])",
-      [fixtureIds],
-    );
-    await db.query(
-      "DELETE FROM producers WHERE id = ANY($1::text[])",
-      [fixtureIds],
-    );
+    const errors: unknown[] = [];
+    const attempt = async (operation: () => Promise<unknown>) => {
+      try {
+        await operation();
+      } catch (error) {
+        errors.push(error);
+      }
+    };
+    await attempt(() => pool.query(
+      `DELETE FROM legal_entities
+       WHERE producer_id IN (
+         SELECT id FROM producers
+         WHERE upper(btrim(rfc)) = ANY($1::text[])
+            OR btrim(numero_productor) = $2
+       )`,
+      [[firstRfc, secondRfc], growerNumber],
+    ));
+    await attempt(() => pool.query(
+      `DELETE FROM producers
+       WHERE upper(btrim(rfc)) = ANY($1::text[])
+          OR btrim(numero_productor) = $2`,
+      [[firstRfc, secondRfc], growerNumber],
+    ));
+    await attempt(() => pool.query(
+      "DELETE FROM audit_logs WHERE target_type = $1 AND target_id = ANY($2::text[])",
+      ["PRODUCER_IMPORT", batchIds],
+    ));
+    await attempt(() => pool.query("DELETE FROM app_users WHERE id = $1", [actorId]));
+    if (errors.length) throw new AggregateError(errors, "Concurrency fixture cleanup failed");
   };
-  const existing = await db.query(
-    "SELECT id FROM producers WHERE upper(btrim(rfc)) = ANY($1::text[]) OR btrim(numero_productor) = $2",
-    [[firstRfc, secondRfc], growerNumber],
-  );
-  assert.equal(existing.rowCount, 0, "The run-unique fixture must not overlap existing data");
   try {
+    await pool.query(
+      `INSERT INTO app_users (id, name, email, role, hash, is_active, created_at)
+       VALUES ($1, $2, $3, 'ADMIN', $4, true, now())`,
+      [actorId, "Concurrency Test Admin", `${actorId}@example.test`, "test-only-unused-hash"],
+    );
+    const existing = await pool.query(
+      "SELECT id FROM producers WHERE upper(btrim(rfc)) = ANY($1::text[]) OR btrim(numero_productor) = $2",
+      [[firstRfc, secondRfc], growerNumber],
+    );
+    assert.equal(existing.rowCount, 0, "The run-unique fixture must not overlap existing data");
     const results = await Promise.allSettled([
       importProducerRows(
         [importRow(firstRfc, growerNumber, "Productor concurrencia A")],
         [11],
-        String(actor.rows[0].id),
+        actorId,
         "ALL_OR_NOTHING",
         { batchId: batchIds[0] },
       ),
       importProducerRows(
         [importRow(secondRfc, growerNumber, "Productor concurrencia B")],
         [22],
-        String(actor.rows[0].id),
+        actorId,
         "ALL_OR_NOTHING",
         { batchId: batchIds[1] },
       ),
     ]);
 
-    const persisted = await db.query(
+    const persisted = await pool.query(
       "SELECT id, rfc, numero_productor FROM producers WHERE btrim(numero_productor) = $1",
       [growerNumber],
     );
-    fixtureIds.push(...persisted.rows.map((row) => String(row.id)));
     const fulfilled = results.filter((result) => result.status === "fulfilled");
     const rejected = results.filter((result) => result.status === "rejected");
     assert.equal(fulfilled.length, 1);
@@ -116,9 +156,5 @@ test("concurrent imports serialize Grower number ownership without silent data l
     assert.equal([firstRfc, secondRfc].includes(String(persisted.rows[0].rfc)), true);
   } finally {
     await cleanup();
-    await db.query(
-      "DELETE FROM audit_logs WHERE target_type = $1 AND target_id = ANY($2::text[])",
-      ["PRODUCER_IMPORT", batchIds],
-    );
   }
 });
