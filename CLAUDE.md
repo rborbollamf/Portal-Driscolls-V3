@@ -1,7 +1,46 @@
 # CLAUDE.md — Portal Driscoll's V3 (guía para Claude Code)
 
 > Colócalo en la **raíz del repo** y haz commit. Claude Code lo lee automáticamente en cada sesión.
-> **Rol de Claude Code en este proyecto: revisar y auditar** los cambios que se construyen en Replit (fase por fase). Claude Code normalmente NO es el constructor principal; su trabajo es verificar calidad, seguridad y que no se rompan las invariantes. Si se te pide aplicar un arreglo, hazlo en una rama y muestra el diff.
+> **Rol de Claude Code en este proyecto: revisar y auditar** los cambios que se construyen en Replit (fase por fase). Claude Code normalmente NO es el constructor principal; su trabajo es verificar calidad, seguridad y que no se rompan las invariantes. Si se te pide aplicar un arreglo, hazlo sobre `main` en commits atómicos y muestra el diff antes de subirlo.
+
+---
+
+# 📍 ESTADO ACTUAL DEL PROYECTO
+
+> **LÉEME PRIMERO — aplica a Claude Code y a Replit por igual.**
+> Esta sección es el ancla de continuidad del proyecto. Se actualiza **al cerrar cada fase**.
+> Aquí va solo el estado vigente; el histórico con evidencia vive en [`docs/auditorias/`](docs/auditorias/).
+
+**Actualizado:** 2026-09-14
+
+| | |
+|---|---|
+| **Fase en curso** | **1.4 — pendientes del cierre de la Fase 1** (ninguno bloqueante) |
+| **Fase 1** | ✅ **CERRADA** — 9/9 criterios de aceptación, verificados contra PostgreSQL real |
+| **Último tag** | `fase-1.3-correcciones-auditoria` — ⚠️ **no está en `origin`**, hay que subirlo |
+| **Última auditoría** | [`docs/auditorias/2026-09-14-fase-1-cierre.md`](docs/auditorias/2026-09-14-fase-1-cierre.md) |
+| **Trabajo siguiente** | [`docs/auditorias/2026-09-14-fase-1-pendientes.md`](docs/auditorias/2026-09-14-fase-1-pendientes.md) |
+
+### Abierto ahora
+
+1. **`npm test` no puede pasar en verde.** Los `&&` abortan en `test:auth` por una prueba que lee `data/db.json`, archivo ausente del repo. Consecuencia: las 27 pruebas de `tests/import/**` y `tests/producers/**` **no corren en CI**. Es el arreglo de mayor retorno.
+2. **`tsconfig.json` ensucia el árbol.** Está commiteado con `"jsx": "react-jsx"` y `next build` lo reescribe a `"preserve"` en cada compilación.
+3. **Sin confirmar:** si el firewall de paquetes de Replit bloquea Next 14.2.35 por su CVE crítica. Se verificó que `npm ci` sí funciona fuera de Replit. Condiciona el plan de contenerización de la Fase 5.
+
+### Decisiones vigentes — no re-litigar
+
+- **Tags, no ramas.** Se trabaja sobre `main`; cada fase se cierra con un tag anotado (`git tag -a`) **y se sube** (`git push origin <tag>`; `git push` solo no envía tags).
+- **Replit construye, Claude Code audita.** Claude diagnostica, redacta el prompt de implementación y audita el diff. No es el constructor principal.
+- **`db/schema.sql` se regenera desde la base viva al cerrar cada fase** y se commitea. Es lo único que detecta cambios hechos sin migración. Ver [`.agents/memory/schema-drift-detection.md`](.agents/memory/schema-drift-detection.md).
+- **El algoritmo de módulo 11 del RFC es correcto.** Verificado contra RFCs reales del SAT. Si un archivo falla en masa, la data es sintética con homoclaves aleatorias. **No lo "arregles".**
+- **Hay PostgreSQL local para auditar** sin depender de Replit. Procedimiento en [`docs/auditorias/README.md`](docs/auditorias/README.md).
+
+### Pendiente de decisión de negocio con Driscoll's
+
+- **Catálogo oficial de distritos.** Los seis de `.env.example` se dedujeron del archivo de prueba, no son oficiales. Al definir `PRODUCER_IMPORT_DISTRICTS`, todo distrito fuera de lista pasa a **error bloqueante**: un catálogo incompleto rechaza en silencio a la mitad del padrón.
+- **Semántica de `zona` vs `distrito`.** El import copia Distrito a ambas columnas. O se define la tabla de equivalencias Distrito → Zona, o se retira `zona` del modelo.
+
+---
 
 ## Qué es el proyecto
 
