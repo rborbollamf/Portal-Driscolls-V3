@@ -10,6 +10,7 @@ import {
   parseProducerImport,
   PRODUCER_IMPORT_HEADERS,
   summarizeValidation,
+  type ProducerImportRow,
 } from "../../lib/services/producer-import";
 
 const row = [
@@ -183,7 +184,28 @@ test("uses physical row numbers when re-summarizing database conflicts", async (
   assert.equal(validation.validRows, 0);
   assert.equal(validation.invalidRows, 1);
   assert.equal(validation.rejectedRows[0]?.row, 5);
-  assert.deepEqual(filterValidImportRows(validation.rows, validation.rowNumbers, validation.errors), []);
+  assert.deepEqual(
+    filterValidImportRows(validation.rows, validation.rowNumbers, validation.errors),
+    { rows: [], rowNumbers: [] },
+  );
+});
+
+test("filters valid rows and physical row numbers in parallel", () => {
+  const first = Object.fromEntries(
+    PRODUCER_IMPORT_HEADERS.map((header) => [header, "first"]),
+  ) as ProducerImportRow;
+  const second = Object.fromEntries(
+    PRODUCER_IMPORT_HEADERS.map((header) => [header, "second"]),
+  ) as ProducerImportRow;
+
+  assert.deepEqual(
+    filterValidImportRows(
+      [first, second],
+      [5, 11],
+      [{ row: 5, code: "INVALID_FORMAT", message: "Invalid fixture row." }],
+    ),
+    { rows: [second], rowNumbers: [11] },
+  );
 });
 
 test("validates configured districts without emitting the file-level warning", { concurrency: false }, async () => {

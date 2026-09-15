@@ -237,7 +237,13 @@ export function filterValidImportRows(
   errors: ImportError[],
 ) {
   const invalidRows = new Set(errors.map((error) => error.row));
-  return rows.filter((_, index) => !invalidRows.has(rowNumbers[index]));
+  return rows.reduce<{ rows: ProducerImportRow[]; rowNumbers: number[] }>((valid, row, index) => {
+    if (!invalidRows.has(rowNumbers[index])) {
+      valid.rows.push(row);
+      valid.rowNumbers.push(rowNumbers[index]);
+    }
+    return valid;
+  }, { rows: [], rowNumbers: [] });
 }
 
 export function rejectionCsv(rows: Array<{ row: number; values?: Record<string, string>; errors: ImportError[] }>) {

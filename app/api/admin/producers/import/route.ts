@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
     if (mode === "ALL_OR_NOTHING" && validation.errors.length) {
       return NextResponse.json({ ...validation, preview: validation.rows.slice(0, 20) }, { status: 422 });
     }
-    const rows = filterValidImportRows(validation.rows, validation.rowNumbers, validation.errors);
-    const invalidRows = new Set(validation.errors.map((error) => error.row));
-    const rowNumbers = validation.rowNumbers.filter((rowNumber) => !invalidRows.has(rowNumber));
+    const { rows, rowNumbers } = filterValidImportRows(
+      validation.rows,
+      validation.rowNumbers,
+      validation.errors,
+    );
     const hash = createHash("sha256").update(buffer).digest("hex");
     const result = await importProducerRows(rows, rowNumbers, auth.userId, mode, {
       batchId: `producer-import-${hash.slice(0, 24)}`,
